@@ -26,16 +26,16 @@ sc, spark = CreateSparkContex()
 
 cart_df = spark.createDataFrame([
     (3, "japan", 4, '2021-01-27 11:12:10', '中国飞鹤', '奶粉'),
-    (3, "japan", 40, '2021-01-27 11:12:10', '中国飞鹤', '奶粉'),
-    (3, "japan", 45, '2021-01-27 11:12:10', '中国飞鹤', '奶粉'),
-    (3, "japan", 4, '2020-11-27 11:12:10', '中国飞鹤', '奶粉'),
-    (3, "japan", 40, '2020-11-27 11:12:10', '中国飞鹤', '奶粉'),
-    (3, "japan", 45, '2020-11-27 11:12:10', '中国飞鹤', '奶粉'),
-    (2, "usa", 7, '2020-10-25 10:12:12', '中国飞鹤', '奶粉'),
-    (2, "usa", 70, '2020-10-25 10:12:12', '中国飞鹤', '奶粉'),
-    (2, "usa", 8, '2020-10-27 10:13:12', '中国飞鹤', '奶粉'),
-    (2, "usa", 7, '2021-01-25 10:12:12', '中国飞鹤', '奶粉'),
-    (2, "usa", 70, '2021-01-25 10:12:12', '中国飞鹤', '奶粉'),
+    (3, "japan", 40, '2021-01-27 11:12:10', '北京市', '北京'),
+    (3, "japan", 45, '2021-01-27 11:12:10', '北京', '北京'),
+    (3, "japan", 4, '2020-11-27 11:12:10', 'KN95口罩', '口罩'),
+    (3, "japan", 40, '2020-11-27 11:12:10', '成人口罩', '口罩'),
+    (3, "japan", 45, '2020-11-27 11:12:10', '内分泌', '奶粉'),
+    (2, "usa", 7, '2020-10-25 10:12:12', '杭州', '安慕希'),
+    (2, "usa", 70, '2020-10-25 10:12:12', '安慕希', '牛奶'),
+    (2, "usa", 8, '2020-10-27 10:13:12', '酸奶', '牛奶'),
+    (2, "usa", 7, '2021-01-25 10:12:12', '牛奶', '牛奶'),
+    (2, "usa", 70, '2021-01-25 10:12:12', '纯牛奶', '牛奶'),
     (2, "usa", 8, '2021-01-27 10:13:12', '中国飞鹤', '奶粉'),
     (2, "usa", 78, '2021-01-27 10:13:12', '中国飞鹤', '奶粉'),
     (2, "usa", 78, None, '中国飞鹤', '奶粉'),
@@ -109,17 +109,24 @@ def id_data_process(df):
         "id.csv")
 
 test_df = load('./mydata.csv',[])
-id_data_process(test_df)
-test_df = text_data_process(test_df,'title')
-test_df = text_data_process(test_df,'category')
-test_df = test_df.select(['title_char','category_char'])
+# id_data_process(test_df)
+# test_df = text_data_process(test_df,'title')
+# test_df = text_data_process(test_df,'category')
+# test_df = test_df.select(['title_char','category_char'])
 # test_df = test_df.withColumn('chars',pyf.concat_ws(' ',col('title_char'),col('category_char')))
 columns = ['title_char','category_char']
 
-for column in columns:
-    column
-test_df = test_df.withColumn('chars',pyf.concat_ws(' ','title_char','category_char'))
+# test_df = test_df.withColumn('chars',pyf.concat_ws(' ','title_char','category_char'))
+# test_df.show()
+# test_df.drop("newcol").coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").mode(
+#     "overwrite").save(
+#     "char.csv")
+
+test_df = test_df.withColumn('raws',pyf.concat_ws(' ','title','category'))
 test_df.show()
+test_df.drop("newcol").coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").mode(
+    "overwrite").save(
+    "raw.csv")
 # print('convert')
 # cart_df = cart_df.withColumn('date',F.date_format(cart_df['arrival_date'],'yyyy-MM-dd HH:mm:ss'))
 # cart_df = cart_df.withColumn('new_date', when(cart_df['cart_time'].isNull(), F.date_format('1900-01-01 00:00:00','yyyy-MM-dd HH:mm:ss')).otherwise(cart_df['cart_time']))
