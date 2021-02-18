@@ -25,6 +25,9 @@ from pyspark.ml.feature import SQLTransformer
 from pyspark.sql.types import ArrayType, DoubleType, FloatType
 from pyspark.ml.linalg import Vectors, DenseVector
 import ceja
+from sklearn.metrics import pairwise_distances
+from sklearn.metrics.pairwise import pairwise_kernels
+from sklearn.metrics.pairwise import cosine_similarity as cosine
 
 
 class Feature(object):
@@ -40,6 +43,13 @@ class Feature(object):
     def add_vector(self, df, column, feature_json):
         def parse_vector_from_string(text):
             vecs = []
+
+            if text is None:
+                return feature_json.get('奶')
+            if isinstance(text, list):
+                for word in text:
+                    pass
+
             for char in text:
                 # print("x:{0} is in vocabulary".format(char))
                 res = feature_json.get(char)
@@ -50,23 +60,22 @@ class Feature(object):
                 vecs.append(res)
 
             avg_vecs = np.mean(np.array(vecs), axis=0).tolist()
-            # print(text)
-            # print(vecs)
-            # print(avg_vecs)
             return avg_vecs
 
         add_embedding = udf(parse_vector_from_string, ArrayType(DoubleType()))
         df = df.withColumn(column + '_vector', add_embedding(column))
         return df
 
-    def calculate_cos(self, df, user_column, item_column):
+    def calculate_cos(self, df, user_column, item_column, prefix):
         def cos_sim(vec1, vec2):
             if (np.linalg.norm(vec1) * np.linalg.norm(vec2)) != 0:
                 dot_value = np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
                 return dot_value.tolist()
 
         cos_sim_udf = udf(cos_sim, FloatType())
-        df = df.withColumn(user_column + '_' + item_column + '_cos_dis', cos_sim_udf(user_column, item_column))
+        df = df.withColumn(user_column + '_' + item_column + '_cos_dis',
+                           cos_sim_udf(user_column + prefix, item_column + prefix))
+        df = df.drop(user_column + prefix, item_column + prefix)
         return df
 
     def levenshtein_distance(self, df, user_column, item_column):
@@ -93,6 +102,8 @@ class Feature(object):
 
         def lcs(string1, string2):
             answer = ""
+            if string1 is None or string2 is None:
+                return 0
             len1, len2 = len(string1), len(string2)
             for i in range(len1):
                 for j in range(len2):
@@ -222,11 +233,15 @@ class Feature(object):
         :param column:
         :return:
         """
-        categories = list(set(df.select(column).distinct().rdd.flatMap(lambda x: x[0]).collect()))
+        df.select(column).show()
+        categories = list(set(df.select(column).distinct().rdd.flatMap(lambda x: print(x, type(x), '\n')).collect()))
+        categories = list(
+            set(df.select(column).distinct().rdd.flatMap(lambda x: x[0] if x is not None else None).collect()))
         categories.sort(reverse=False)
         # sorted(categories, key=(lambda x: x[0]))
         print(categories)
-        cvm = CountVectorizerModel.from_vocabulary(categories, inputCol=column, outputCol=column+"_sparse_vec").transform(df)
+        cvm = CountVectorizerModel.from_vocabulary(categories, inputCol=column,
+                                                   outputCol=column + "_sparse_vec").transform(df)
         cvm.show()
 
         @udf(ArrayType(IntegerType()))
@@ -239,11 +254,10 @@ class Feature(object):
 
             return new_array
 
-        result = cvm.withColumn('features_vec', toDense(column+"_sparse_vec"))
-        result = result.drop(column+"_sparse_vec")
+        result = cvm.withColumn('features_vec', toDense(column + "_sparse_vec"))
+        result = result.drop(column + "_sparse_vec")
 
         return result
-
 
 
 def CreateSparkContex():
@@ -259,63 +273,70 @@ if __name__ == "__main__":
     sc, spark = CreateSparkContex()
     feature = Feature()
     data = [
-        ("jellyfish", "smellyfish", None, 0.8, 1, "[4,3]", [4, 3]),
-        ("li", "lee", None, 0.5, 1, "[3]", [3]),
-        ("luisa", "bruna", 100, 0.6, 2, None, None),
-        ("martha", "marhta", 0, 0.3, 3, "[2, 3, 4]", []),
-        ("口罩", "KN95口罩", 10, 0.9, 3, "[1, 2, 3, 4]", [1, 2, 3, 4]),
-        ("北京", "北京市", 20, 0.8, 5, "[2]", [2]),
-        ("纯牛奶", "牛奶", 50, 0.78, 4, "[1, 2, 3]", [1, 2, 3]),
-        ("安慕希", "牛奶", 20, 0.8, 5, "[1, 2]", [1, 2]),
-        ("奶", "牛", 50, 0.7, 6, "[1, 2, 3]", [1, 2, 3]),
+        ("jellyfish", "smellyfish", None, 0.8, 1, "[4,3]", [4, 3], ['牛奶', '奶制品']),
+        ("li", "lee", None, 0.5, 1, "[3]", [3], ['牛奶', '奶制品']),
+        ("luisa", "bruna", 100, 0.6, 2, None, None, ['牛奶', '奶制品']),
+        ("martha", "marhta", 0, 0.3, 3, "[2, 3, 4]", [], ['牛奶', '奶制品']),
+        ("口罩", "KN95口罩", 10, 0.9, 3, "[1, 2, 3, 4]", [1, 2, 3, 4], ['牛奶', '奶制品']),
+        ("北京", "北京市", 20, 0.8, 5, "[2]", [2], ['牛奶', '奶制品']),
+        ("纯牛奶", "牛奶", 50, 0.78, 4, "[1, 2, 3]", [1, 2, 3], ['牛奶', '奶制品']),
+        ("安慕希", "牛奶", 20, 0.8, 5, "[1, 2]", [1, 2], ['牛奶', '奶制品']),
+        ("奶", "牛", 50, 0.7, 6, "[1, 2, 3]", [1, 2, 3], ['牛奶', '奶制品']),
+        ("奶", None, 50, 0.7, 6, "[1, 2, 3]", [1, 2, 3], None),
     ]
-    df = spark.createDataFrame(data, ["word1", "word2", "price", "rate", "category_id", "tag_ids", "ids"])
+    df = spark.createDataFrame(data, ["word1", "word2", "price", "rate", "category_id", "tag_ids", "ids", "tag_texts"])
     df.show()
     df.printSchema()
-    # actual_df = df.withColumn("hamming_distance", ceja.hamming_distance(col("word1"), col("word2")))
-    # actual_df = feature.hamming_distance(df, "word1", "word2")
-    # print("\nHamming distance")
-    # actual_df.show()
-    #
-    # actual_df = feature.levenshtein_distance(df, "word1", "word2")
-    # print("\n Damerau-Levenshtein Distance")
-    # actual_df.show()
-    #
-    # actual_df = feature.jaro_similarity(df, "word1", "word2")
-    # print("\n jaro_similarity")
-    # actual_df.show()
-    #
-    # actual_df = feature.jaro_winkler_similarity(df, "word1", "word2")
-    # print("\n jaro_winkler_similarity")
-    # actual_df.show()
-    #
-    # actual_df = feature.longe_common_substring(df, "word1", "word2")
-    # print("\n lcs")
-    # actual_df.show()
-    # word_json = feature.load_embedding('../data/char.json')
-    #
-    # actual_df = feature.add_vector(actual_df, "word1", word_json)
-    # actual_df.show()
+    actual_df = df.withColumn("hamming_distance", ceja.hamming_distance(col("word1"), col("word2")))
+    actual_df = feature.hamming_distance(df, "word1", "word2")
+    print("\nHamming distance")
+    actual_df.show()
 
-    numic_columns = ["price", "rate"]
-    for column in numic_columns:
-        df = feature.quantile_discretizer(df, column=column, num_buckets=4)
-        df.show()
+    actual_df = feature.levenshtein_distance(df, "word1", "word2")
+    print("\n Damerau-Levenshtein Distance")
+    actual_df.show()
 
-        # df = feature.binarizer(df, column)
-        # df.show()
+    actual_df = feature.jaro_similarity(df, "word1", "word2")
+    print("\n jaro_similarity")
+    actual_df.show()
 
-        df = feature.buckert(df, column)
-        df.show()
-        #
-        # df = feature.standard_scaler(df, column)
-        # df.show()
+    actual_df = feature.jaro_winkler_similarity(df, "word1", "word2")
+    print("\n jaro_winkler_similarity")
+    actual_df.show()
 
-    ids_columns = ["category_id"]
-    for column in ids_columns:
-        df = feature.onehot(df, column)
-        df.show()
-        df.printSchema()
+    actual_df = feature.longe_common_substring(df, "word1", "word2")
+    print("\n lcs")
+    actual_df.show()
+    word_json = feature.load_embedding('../data/char.json')
+
+    actual_df = feature.add_vector(actual_df, "word1", word_json)
+    actual_df.show()
+
+    actual_df = feature.add_vector(actual_df, "word2", word_json)
+    actual_df.show()
+
+    actual_df = feature.calculate_cos(actual_df, 'word1', 'word2', '_vector')
+    actual_df.show()
+    #
+    # numic_columns = ["price", "rate"]
+    # for column in numic_columns:
+    #     df = feature.quantile_discretizer(df, column=column, num_buckets=4)
+    #     df.show()
+    #
+    #     # df = feature.binarizer(df, column)
+    #     # df.show()
+    #
+    #     df = feature.buckert(df, column)
+    #     df.show()
+    #     #
+    #     # df = feature.standard_scaler(df, column)
+    #     # df.show()
+    #
+    # ids_columns = ["category_id"]
+    # for column in ids_columns:
+    #     df = feature.onehot(df, column)
+    #     df.show()
+    #     df.printSchema()
 
     multi_ids_columns = ["tag_ids", "ids"]
 
