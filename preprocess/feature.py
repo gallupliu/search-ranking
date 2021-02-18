@@ -244,24 +244,6 @@ class Feature(object):
 
         return result
 
-    # def onehot_encoder(self, df, column):
-    #     """
-    #     类别列 独热编码OneHotEncoder
-    #     """
-    #     print('onehot')
-    #
-    #     # string类型转化成double类型
-    #     stringIndexer = StringIndexer(inputCol=column, outputCol=column + '_index')
-    #     model = stringIndexer.fit(df)
-    #     indexed = model.transform(df)
-    #     indexed.printSchema()
-    #
-    #     # 对数值型表示的类别型特征独热编码
-    #     encoder = OneHotEncoder(dropLast=False,inputCol=column + '_index', outputCol=column + '_onehot')  # inputCol类型必须是numeric
-    #     ohe = encoder.fit(indexed)
-    #     encoded = ohe.transform(indexed)  # 编码后数据存libsvm格式表示稀疏向量：向量大小 索引列 值
-    #
-    #     return encoded
 
 
 def CreateSparkContex():
