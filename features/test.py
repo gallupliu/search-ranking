@@ -121,7 +121,7 @@ columns = ['title_char','category_char']
 # test_df.drop("newcol").coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").mode(
 #     "overwrite").save(
 #     "char.csv")
-
+test_df.show()
 test_df = test_df.withColumn('raws',pyf.concat_ws(' ','title','category'))
 test_df.show()
 test_df.drop("newcol").coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").mode(

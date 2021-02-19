@@ -36,8 +36,14 @@ class Feature(object):
         pass
 
     def load_embedding(self, file_path):
+        default_vector = np.random.uniform(low=-0.1, high=0.1, size=32)
+
         with open(file_path, 'r') as fin:
             feature_json = json.loads(fin.read())
+            if feature_json.get('unk',None) is None:
+                feature_json['unk'] = default_vector
+                fout = open(file_path, 'w')
+                json.dump(feature_json, fout)
             return feature_json
 
     def add_vector(self, df, column, feature_json):
