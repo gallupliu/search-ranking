@@ -41,7 +41,7 @@ class Feature(object):
         with open(file_path, 'r') as fin:
             feature_json = json.loads(fin.read())
             if feature_json.get('unk',None) is None:
-                feature_json['unk'] = default_vector
+                feature_json['unk'] = default_vector.tolist()
                 fout = open(file_path, 'w')
                 json.dump(feature_json, fout)
             return feature_json
