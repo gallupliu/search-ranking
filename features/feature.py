@@ -30,17 +30,17 @@ if __name__ == '__main__':
     sc, spark = CreateSparkContex()
 
     exposure_df = spark.createDataFrame([
-        (1, "china", 72, 1, '2021-01-27 22:11:52'),
-        (1, "china", 70, 4, '2021-01-27 22:11:52'),
-        (1, "china", 79, 5, '2021-01-27 22:11:52'),
-        (2, "usa", 78, 3, '2021-01-27 10:11:52'),
-        (2, "usa", 48, 6, '2021-01-27 10:11:52'),
-        (2, "usa", None, 6, '2021-01-27 10:11:52'),
-        (2, "usa", 1000, 6, '2021-01-27 10:11:52'),
-        (3, "\\N", 45, 3, '2021-01-27 11:11:10'),
-        (3, "japan", 45, 3, '2021-01-27 11:11:10'),
-        (3, "japan", 65, 5, '2021-01-27 11:11:10'), ],
-        ['user_id', 'keyword', 'spu_id', 'position', 'exposure_time'])
+        (1, "china", 72, 1, '2021-01-27 22:11:52', 10, 0, 100),
+        (1, "china", 70, 4, '2021-01-27 22:11:52', 9, 0.5, 80),
+        (1, "china", 79, 5, '2021-01-27 22:11:52', 70, 0.2, 6),
+        (2, "usa", 78, 3, '2021-01-27 10:11:52', 1, 0.2, 0),
+        (2, "usa", 48, 6, '2021-01-27 10:11:52', 7, 0.5, 11),
+        (2, "usa", None, 6, '2021-01-27 10:11:52', 11, 0.5, 21),
+        (2, "usa", 1000, 6, '2021-01-27 10:11:52', 21, 0.3, 1),
+        (3, "\\N", 45, 3, '2021-01-27 11:11:10', 1, 0.5, 11),
+        (3, "japan", 45, 3, '2021-01-27 11:11:10', 1, 1.0, 10),
+        (3, "japan", 65, 5, '2021-01-27 11:11:10', 1, 0.0, 10), ],
+        ['user_id', 'keyword', 'spu_id', 'position', 'exposure_time','price','rate','nums'])
 
     click_df = spark.createDataFrame([
         (1, "china", 72, 1, '2021-01-27 22:12:52'),
@@ -67,7 +67,7 @@ if __name__ == '__main__':
     exposure_df.show()
     click_df.show()
     cart_df.show()
-    print(exposure_df.select('keyword').first()[0] )
+    print(exposure_df.select('keyword').first()[0])
     expr = "\\N"
     exposure_df = exposure_df.filter("spu_id is not null and spu_id != 1000")
     exposure_df.show()

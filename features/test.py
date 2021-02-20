@@ -108,13 +108,14 @@ def id_data_process(df):
         "overwrite").save(
         "id.csv")
 
-test_df = load('./mydata.csv',[])
+
+test_df = load('./mydata.csv', [])
 # id_data_process(test_df)
 # test_df = text_data_process(test_df,'title')
 # test_df = text_data_process(test_df,'category')
 # test_df = test_df.select(['title_char','category_char'])
 # test_df = test_df.withColumn('chars',pyf.concat_ws(' ',col('title_char'),col('category_char')))
-columns = ['title_char','category_char']
+columns = ['title_char', 'category_char']
 
 # test_df = test_df.withColumn('chars',pyf.concat_ws(' ','title_char','category_char'))
 # test_df.show()
@@ -122,12 +123,26 @@ columns = ['title_char','category_char']
 #     "overwrite").save(
 #     "char.csv")
 test_df.show()
-test_df = test_df.withColumn('raws',pyf.concat_ws(' ','title','category'))
+test_df = test_df.withColumn('raws', pyf.concat_ws(' ', 'title', 'category'))
 test_df.show()
 test_df.drop("newcol").coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").mode(
     "overwrite").save(
     "raw.csv")
-# print('convert')
+print('convert')
+
+df = spark.createDataFrame([("a", None, None,'0.1',5,0.1),("a", "code2", "name2",'1.0',10,0.9),
+                            ("a", "code1", None,None,11,0.1), ("a", "code2", "name2",'-0.1',0,0.6)], ["id", "code", "name","rate","price","uv_rate"])
+
+df.show()
+df = df.withColumn("rate",df["rate"].cast(DoubleType()).alias("rate"))
+df.show()
+df.printSchema()
+df.groupby("id").agg(pyf.collect_set("code"),pyf.collect_list("name")).show()
+
+
+qds3 = QuantileDiscretizer(relativeError=0.01, handleInvalid="error",
+     numBucketsArray=[5, 10], inputCols=["input1", "input2"],
+     outputCols=["output1", "output2"])
 # cart_df = cart_df.withColumn('date',F.date_format(cart_df['arrival_date'],'yyyy-MM-dd HH:mm:ss'))
 # cart_df = cart_df.withColumn('new_date', when(cart_df['cart_time'].isNull(), F.date_format('1900-01-01 00:00:00','yyyy-MM-dd HH:mm:ss')).otherwise(cart_df['cart_time']))
 # cart_df.show()

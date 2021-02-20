@@ -40,7 +40,7 @@ class Feature(object):
 
         with open(file_path, 'r') as fin:
             feature_json = json.loads(fin.read())
-            if feature_json.get('unk',None) is None:
+            if feature_json.get('unk', None) is None:
                 feature_json['unk'] = default_vector.tolist()
                 fout = open(file_path, 'w')
                 json.dump(feature_json, fout)
@@ -156,9 +156,13 @@ class Feature(object):
         print('QuantileDiscretizerExample')
         df = df.repartition(1)
         # 按分位数分桶离散化——分位数离散化
-        discretizer = QuantileDiscretizer(numBuckets=num_buckets, inputCol=column,
+        discretizer = QuantileDiscretizer(numBuckets=num_buckets, relativeError=0.01, handleInvalid="error",
+                                          inputCol=column,
                                           outputCol=column + '_quant')  # numBuckets指定分桶数
-        result = discretizer.fit(df).transform(df)
+        # QuantileDiscretizer(relativeError=0.01, handleInvalid="error",
+        #                     numBucketsArray=[5, 10], inputCols=["input1", "input2"],
+        #                     outputCols=["output1", "output2"])
+        result = discretizer.setHandleInvalid("keep").fit(df).transform(df)
         return result
 
     def max_abs_scaler(self, df, column):
@@ -199,6 +203,8 @@ class Feature(object):
 
     def onehot(self, df, column):
         categories = df.select(column).distinct().rdd.flatMap(lambda x: x).collect()
+        print(categories)
+        categories = [0 if v is None else v for v in categories]
         categories.sort()
         for category in categories:
             function = udf(lambda item: 1 if item == category else 0, IntegerType())
@@ -288,68 +294,69 @@ if __name__ == "__main__":
         ("纯牛奶", "牛奶", 50, 0.78, 4, "[1, 2, 3]", [1, 2, 3], ['牛奶', '奶制品']),
         ("安慕希", "牛奶", 20, 0.8, 5, "[1, 2]", [1, 2], ['牛奶', '奶制品']),
         ("奶", "牛", 50, 0.7, 6, "[1, 2, 3]", [1, 2, 3], ['牛奶', '奶制品']),
-        ("奶", None, 50, 0.7, 6, "[1, 2, 3]", [1, 2, 3], None),
+        ("奶", None, None, 0.7, 6, "[1, 2, 3]", [1, 2, 3], None),
+        ("奶", None, 50, 0.7, None, "[1, 2, 3]", [1, 2, 3], None),
     ]
     df = spark.createDataFrame(data, ["word1", "word2", "price", "rate", "category_id", "tag_ids", "ids", "tag_texts"])
-    df.show()
-    df.printSchema()
-    actual_df = df.withColumn("hamming_distance", ceja.hamming_distance(col("word1"), col("word2")))
-    actual_df = feature.hamming_distance(df, "word1", "word2")
-    print("\nHamming distance")
-    actual_df.show()
-
-    actual_df = feature.levenshtein_distance(df, "word1", "word2")
-    print("\n Damerau-Levenshtein Distance")
-    actual_df.show()
-
-    actual_df = feature.jaro_similarity(df, "word1", "word2")
-    print("\n jaro_similarity")
-    actual_df.show()
-
-    actual_df = feature.jaro_winkler_similarity(df, "word1", "word2")
-    print("\n jaro_winkler_similarity")
-    actual_df.show()
-
-    actual_df = feature.longe_common_substring(df, "word1", "word2")
-    print("\n lcs")
-    actual_df.show()
-    word_json = feature.load_embedding('../data/char.json')
-
-    actual_df = feature.add_vector(actual_df, "word1", word_json)
-    actual_df.show()
-
-    actual_df = feature.add_vector(actual_df, "word2", word_json)
-    actual_df.show()
-
-    actual_df = feature.calculate_cos(actual_df, 'word1', 'word2', '_vector')
-    actual_df.show()
+    # df.show()
+    # df.printSchema()
+    # actual_df = df.withColumn("hamming_distance", ceja.hamming_distance(col("word1"), col("word2")))
+    # actual_df = feature.hamming_distance(df, "word1", "word2")
+    # print("\nHamming distance")
+    # actual_df.show()
     #
-    # numic_columns = ["price", "rate"]
-    # for column in numic_columns:
-    #     df = feature.quantile_discretizer(df, column=column, num_buckets=4)
-    #     df.show()
+    # actual_df = feature.levenshtein_distance(df, "word1", "word2")
+    # print("\n Damerau-Levenshtein Distance")
+    # actual_df.show()
     #
-    #     # df = feature.binarizer(df, column)
-    #     # df.show()
+    # actual_df = feature.jaro_similarity(df, "word1", "word2")
+    # print("\n jaro_similarity")
+    # actual_df.show()
     #
-    #     df = feature.buckert(df, column)
-    #     df.show()
-    #     #
-    #     # df = feature.standard_scaler(df, column)
-    #     # df.show()
+    # actual_df = feature.jaro_winkler_similarity(df, "word1", "word2")
+    # print("\n jaro_winkler_similarity")
+    # actual_df.show()
     #
-    # ids_columns = ["category_id"]
-    # for column in ids_columns:
-    #     df = feature.onehot(df, column)
-    #     df.show()
-    #     df.printSchema()
-
-    multi_ids_columns = ["tag_ids", "ids"]
-
-    for column in multi_ids_columns:
-        df = feature.multionehot(df, column)
+    # actual_df = feature.longe_common_substring(df, "word1", "word2")
+    # print("\n lcs")
+    # actual_df.show()
+    # word_json = feature.load_embedding('../data/char.json')
+    #
+    # actual_df = feature.add_vector(actual_df, "word1", word_json)
+    # actual_df.show()
+    #
+    # actual_df = feature.add_vector(actual_df, "word2", word_json)
+    # actual_df.show()
+    #
+    # actual_df = feature.calculate_cos(actual_df, 'word1', 'word2', '_vector')
+    # actual_df.show()
+    #
+    numic_columns = ["price", "rate"]
+    for column in numic_columns:
+        df = feature.quantile_discretizer(df, column=column, num_buckets=4)
         df.show()
 
-    df.drop('ids').coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").mode(
-        "overwrite").save(
-        "feature.csv")
+        # df = feature.binarizer(df, column)
+        # df.show()
+
+        df = feature.buckert(df, column)
+        df.show()
+        #
+        # df = feature.standard_scaler(df, column)
+        # df.show()
+
+    ids_columns = ["category_id"]
+    for column in ids_columns:
+        df = feature.onehot(df, column)
+        df.show()
+        df.printSchema()
+
+    # multi_ids_columns = ["tag_ids", "ids"]
+    #
+    # for column in multi_ids_columns:
+    #     df = feature.multionehot(df, column)
+    #     df.show()
+    #
+    # df.drop('ids').coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").mode(
+    #     "overwrite").save(
+    #     "feature.csv")
