@@ -156,12 +156,16 @@ class Feature(object):
         print('QuantileDiscretizerExample')
         df = df.repartition(1)
         # 按分位数分桶离散化——分位数离散化
-        discretizer = QuantileDiscretizer(numBuckets=num_buckets, relativeError=0.01, handleInvalid="error",
-                                          inputCol=column,
-                                          outputCol=column + '_quant')  # numBuckets指定分桶数
-        # QuantileDiscretizer(relativeError=0.01, handleInvalid="error",
-        #                     numBucketsArray=[5, 10], inputCols=["input1", "input2"],
-        #                     outputCols=["output1", "output2"])
+        if isinstance(column, list):
+            output_column = [str(v) + '_quant' for v in numic_columns]
+            discretizer = QuantileDiscretizer(relativeError=0.01, handleInvalid="error",
+                                              numBucketsArray=num_buckets, inputCols=column,
+                                              outputCols=output_column)
+        else:
+            discretizer = QuantileDiscretizer(numBuckets=num_buckets, relativeError=0.01, handleInvalid="error",
+                                              inputCol=column,
+                                              outputCol=column + '_quant')  # numBuckets指定分桶数
+
         result = discretizer.setHandleInvalid("keep").fit(df).transform(df)
         return result
 
@@ -332,21 +336,23 @@ if __name__ == "__main__":
     # actual_df.show()
     #
     numic_columns = ["price", "rate"]
-    for column in numic_columns:
-        df = feature.quantile_discretizer(df, column=column, num_buckets=4)
-        df.show()
+    # for column in numic_columns:
+    #     df = feature.quantile_discretizer(df, column=column, num_buckets=4)
+    #     df.show()
+    #
+    #     # df = feature.binarizer(df, column)
+    #     # df.show()
+    #
+    #     df = feature.buckert(df, column)
+    #     df.show()
+    #     #
+    #     # df = feature.standard_scaler(df, column)
+    #     # df.show()
 
-        # df = feature.binarizer(df, column)
-        # df.show()
-
-        df = feature.buckert(df, column)
-        df.show()
-        #
-        # df = feature.standard_scaler(df, column)
-        # df.show()
-
+    onehot_numic_columns = [str(v) + '_quant' for v in numic_columns]
+    df = feature.quantile_discretizer(df, column= numic_columns, num_buckets=[3,10])
     ids_columns = ["category_id"]
-    for column in ids_columns:
+    for column in ids_columns + onehot_numic_columns:
         df = feature.onehot(df, column)
         df.show()
         df.printSchema()
