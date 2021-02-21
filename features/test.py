@@ -140,9 +140,7 @@ df.printSchema()
 df.groupby("id").agg(pyf.collect_set("code"),pyf.collect_list("name")).show()
 
 
-qds3 = QuantileDiscretizer(relativeError=0.01, handleInvalid="error",
-     numBucketsArray=[5, 10], inputCols=["input1", "input2"],
-     outputCols=["output1", "output2"])
+
 # cart_df = cart_df.withColumn('date',F.date_format(cart_df['arrival_date'],'yyyy-MM-dd HH:mm:ss'))
 # cart_df = cart_df.withColumn('new_date', when(cart_df['cart_time'].isNull(), F.date_format('1900-01-01 00:00:00','yyyy-MM-dd HH:mm:ss')).otherwise(cart_df['cart_time']))
 # cart_df.show()

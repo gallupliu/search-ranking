@@ -18,6 +18,7 @@ from pyspark.ml.feature import Tokenizer, RegexTokenizer
 from pyspark.sql.types import IntegerType
 # pyspark.sql.functions.col(col) Returns a Column based on the given column name.
 from pyspark.sql.functions import col, udf
+import pyspark.sql.functions as pyf
 from pyspark.ml.feature import CountVectorizer, CountVectorizerModel
 from pyspark.ml.feature import Tokenizer, HashingTF, IDF
 from pyspark.ml.feature import NGram
@@ -28,6 +29,7 @@ import ceja
 from sklearn.metrics import pairwise_distances
 from sklearn.metrics.pairwise import pairwise_kernels
 from sklearn.metrics.pairwise import cosine_similarity as cosine
+from pyspark.sql.types import StringType
 
 
 class Feature(object):
@@ -158,6 +160,7 @@ class Feature(object):
         # 按分位数分桶离散化——分位数离散化
         if isinstance(column, list):
             output_column = [str(v) + '_quant' for v in numic_columns]
+            print(len(column), len(output_column), len(num_buckets))
             discretizer = QuantileDiscretizer(relativeError=0.01, handleInvalid="error",
                                               numBucketsArray=num_buckets, inputCols=column,
                                               outputCols=output_column)
@@ -215,6 +218,67 @@ class Feature(object):
             new_column_name = column + '_' + str(category)
             df = df.withColumn(new_column_name, function(col(column)))
         return df
+
+    def oneHotEncodeColumns(self, df, cols, save_path):
+        '''
+        :param df: 输入spark.DataFrame
+        :param cols: 需要编码的列名
+        :return: 编码后的新spark.DataFrame
+        '''
+        newdf = df
+        num = 0
+        total = len(cols)
+        print("正在onehot特征化...")
+
+        @udf(ArrayType(IntegerType()))
+        def toDense(v):
+            print(v)
+            print(Vectors.dense(v).toArray())
+            v = DenseVector(v)
+
+            new_array = list([int(x) for x in v])
+
+            return new_array
+
+        for c in cols:
+            num += 1
+            # print("{0}/{1} 正在onehot特征:{2}".format(num, total, c))
+            onehotEncoderPath = save_path + "/onehot-" + c
+            print("{0}/{1} 正在onehot特征:{2}".format(num, total, c))
+            stringIndexer = StringIndexer(inputCol=c, outputCol=c + "Index", handleInvalid="keep")
+            model = stringIndexer.fit(df)
+            indexed = model.transform(df)
+            ohe = OneHotEncoder(inputCol=c + "Index", outputCol=c + "-onehot", dropLast=False)
+            newdf = ohe.fit(indexed).transform(indexed).drop(c)
+            newdf = newdf.withColumnRenamed(c + "-onehot", c)
+            newdf = newdf.withColumn(c + "-onehot", toDense(c)).drop(c).drop(c + "Index")
+            newdf = newdf.withColumnRenamed(c + "-onehot", c)
+            ohe.write().overwrite().save(onehotEncoderPath)
+        print("完成onehot特征化!")
+        # newdf.withColumn('updatetime', pyf.current_timestamp())
+        # newdf.write.mode("overwrite").saveAsTable("mkt_mldb_tmp.TRAIN_dfhotable")  #
+        return newdf
+
+    def oneHotDecodeColumns(self, df, cols, save_path):
+        '''
+        :param df: 输入spark.DataFrame
+        :param cols: 需要编码的列名
+        :return: 编码后的新spark.DataFrame
+        '''
+        newdf = df
+        num = 0
+        total = len(cols)
+        print("正在onehot特征化...")
+        for c in cols:
+            num += 1
+            # print("{0}/{1} 正在onehot特征:{2}".format(num, total, c))
+            onehotEncoderPath = save_path + "/onehot-" + c
+            # 线上预测
+            onehotenc = OneHotEncoder.load(onehotEncoderPath)
+            newdf = onehotenc.transform(newdf).drop(c)
+            newdf = newdf.withColumnRenamed(c + "-onehot", c)
+        print("完成onehot特征化!")
+        return newdf
 
     def multionehot(self, df, column):
         """
@@ -289,54 +353,56 @@ if __name__ == "__main__":
     sc, spark = CreateSparkContex()
     feature = Feature()
     data = [
-        ("jellyfish", "smellyfish", None, 0.8, 1, "[4,3]", [4, 3], ['牛奶', '奶制品']),
-        ("li", "lee", None, 0.5, 1, "[3]", [3], ['牛奶', '奶制品']),
-        ("luisa", "bruna", 100, 0.6, 2, None, None, ['牛奶', '奶制品']),
-        ("martha", "marhta", 0, 0.3, 3, "[2, 3, 4]", [], ['牛奶', '奶制品']),
-        ("口罩", "KN95口罩", 10, 0.9, 3, "[1, 2, 3, 4]", [1, 2, 3, 4], ['牛奶', '奶制品']),
-        ("北京", "北京市", 20, 0.8, 5, "[2]", [2], ['牛奶', '奶制品']),
-        ("纯牛奶", "牛奶", 50, 0.78, 4, "[1, 2, 3]", [1, 2, 3], ['牛奶', '奶制品']),
-        ("安慕希", "牛奶", 20, 0.8, 5, "[1, 2]", [1, 2], ['牛奶', '奶制品']),
-        ("奶", "牛", 50, 0.7, 6, "[1, 2, 3]", [1, 2, 3], ['牛奶', '奶制品']),
-        ("奶", None, None, 0.7, 6, "[1, 2, 3]", [1, 2, 3], None),
-        ("奶", None, 50, 0.7, None, "[1, 2, 3]", [1, 2, 3], None),
+        ("jellyfish", "smellyfish", None, 0.8, 1, "[4,3]", [4, 3], ['牛奶', '奶制品'], "A"),
+        ("li", "lee", None, 0.5, 1, "[3]", [3], ['牛奶', '奶制品'], "A"),
+        ("luisa", "bruna", 100, 0.6, 2, None, None, ['牛奶', '奶制品'], "B"),
+        ("martha", "marhta", 0, 0.3, 3, "[2, 3, 4]", [], ['牛奶', '奶制品'], "C"),
+        ("口罩", "KN95口罩", 10, 0.9, 3, "[1, 2, 3, 4]", [1, 2, 3, 4], ['牛奶', '奶制品'], "D"),
+        ("北京", "北京市", 20, 0.8, 5, "[2]", [2], ['牛奶', '奶制品'], "D"),
+        ("纯牛奶", "牛奶", 50, 0.78, 4, "[1, 2, 3]", [1, 2, 3], ['牛奶', '奶制品'], "E"),
+        ("安慕希", "牛奶", 20, 0.8, 5, "[1, 2]", [1, 2], ['牛奶', '奶制品'], "E"),
+        ("奶", "牛", 50, 0.7, 6, "[1, 2, 3]", [1, 2, 3], ['牛奶', '奶制品'], "B"),
+        ("奶", None, None, 0.7, 6, "[1, 2, 3]", [1, 2, 3], None, "C"),
+        ("奶", None, 50, 0.7, None, "[1, 2, 3]", [1, 2, 3], None, "E"),
     ]
-    df = spark.createDataFrame(data, ["word1", "word2", "price", "rate", "category_id", "tag_ids", "ids", "tag_texts"])
-    # df.show()
-    # df.printSchema()
-    # actual_df = df.withColumn("hamming_distance", ceja.hamming_distance(col("word1"), col("word2")))
-    # actual_df = feature.hamming_distance(df, "word1", "word2")
-    # print("\nHamming distance")
-    # actual_df.show()
-    #
-    # actual_df = feature.levenshtein_distance(df, "word1", "word2")
-    # print("\n Damerau-Levenshtein Distance")
-    # actual_df.show()
-    #
-    # actual_df = feature.jaro_similarity(df, "word1", "word2")
-    # print("\n jaro_similarity")
-    # actual_df.show()
-    #
-    # actual_df = feature.jaro_winkler_similarity(df, "word1", "word2")
-    # print("\n jaro_winkler_similarity")
-    # actual_df.show()
-    #
-    # actual_df = feature.longe_common_substring(df, "word1", "word2")
-    # print("\n lcs")
-    # actual_df.show()
-    # word_json = feature.load_embedding('../data/char.json')
-    #
-    # actual_df = feature.add_vector(actual_df, "word1", word_json)
-    # actual_df.show()
-    #
-    # actual_df = feature.add_vector(actual_df, "word2", word_json)
-    # actual_df.show()
-    #
-    # actual_df = feature.calculate_cos(actual_df, 'word1', 'word2', '_vector')
-    # actual_df.show()
-    #
+    df = spark.createDataFrame(data, ["word1", "word2", "price", "rate", "category_id", "tag_ids", "ids", "tag_texts",
+                                      "category"])
+    df.show()
+    df.printSchema()
+    actual_df = df.withColumn("hamming_distance", ceja.hamming_distance(col("word1"), col("word2")))
+    actual_df = feature.hamming_distance(df, "word1", "word2")
+    print("\nHamming distance")
+    actual_df.show()
+
+    actual_df = feature.levenshtein_distance(df, "word1", "word2")
+    print("\n Damerau-Levenshtein Distance")
+    actual_df.show()
+
+    actual_df = feature.jaro_similarity(df, "word1", "word2")
+    print("\n jaro_similarity")
+    actual_df.show()
+
+    actual_df = feature.jaro_winkler_similarity(df, "word1", "word2")
+    print("\n jaro_winkler_similarity")
+    actual_df.show()
+
+    actual_df = feature.longe_common_substring(df, "word1", "word2")
+    print("\n lcs")
+    actual_df.show()
+    word_json = feature.load_embedding('../data/char.json')
+
+    actual_df = feature.add_vector(actual_df, "word1", word_json)
+    actual_df.show()
+
+    actual_df = feature.add_vector(actual_df, "word2", word_json)
+    actual_df.show()
+
+    actual_df = feature.calculate_cos(actual_df, 'word1', 'word2', '_vector')
+    actual_df.show()
+
     numic_columns = ["price", "rate"]
-    # for column in numic_columns:
+    for column in numic_columns:
+        df = df.withColumn(column, df[column].cast(FloatType()).alias(column))
     #     df = feature.quantile_discretizer(df, column=column, num_buckets=4)
     #     df.show()
     #
@@ -350,12 +416,17 @@ if __name__ == "__main__":
     #     # df.show()
 
     onehot_numic_columns = [str(v) + '_quant' for v in numic_columns]
-    df = feature.quantile_discretizer(df, column= numic_columns, num_buckets=[3,10])
+    df = feature.quantile_discretizer(df, column=numic_columns, num_buckets=[3, 10])
     ids_columns = ["category_id"]
-    for column in ids_columns + onehot_numic_columns:
-        df = feature.onehot(df, column)
-        df.show()
-        df.printSchema()
+    # for column in ids_columns + onehot_numic_columns:
+    #     df = feature.onehot(df, column)
+    df = feature.oneHotEncodeColumns(df, cols=["category"], save_path='./')
+    df = feature.oneHotEncodeColumns(df, cols=["category_id"], save_path='./')
+    df.show()
+    df.printSchema()
+
+    print([3] * 5)
+
 
     # multi_ids_columns = ["tag_ids", "ids"]
     #
@@ -363,6 +434,17 @@ if __name__ == "__main__":
     #     df = feature.multionehot(df, column)
     #     df.show()
     #
-    # df.drop('ids').coalesce(1).write.format("com.databricks.spark.csv").option("header", "true").mode(
-    #     "overwrite").save(
-    #     "feature.csv")
+
+    def array_to_string(my_list):
+        return '[' + ','.join([str(elem) for elem in my_list]) + ']'
+
+
+    array_to_string_udf = udf(array_to_string, StringType())
+
+    df = df.withColumn('categorystr', array_to_string_udf("category")).drop("category")
+    df = df.withColumn('categoryIdStr', array_to_string_udf("category_id")).drop("category_id")
+    # df.show()
+    df.drop("tag_ids").drop("ids").drop("tag_texts").coalesce(1).write.format("com.databricks.spark.csv").option(
+        "header", "true").mode(
+        "overwrite").save(
+        "feature.csv")
