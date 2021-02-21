@@ -269,13 +269,27 @@ class Feature(object):
         num = 0
         total = len(cols)
         print("正在onehot特征化...")
+        @udf(ArrayType(IntegerType()))
+        def toDense(v):
+            print(v)
+            print(Vectors.dense(v).toArray())
+            v = DenseVector(v)
+
+            new_array = list([int(x) for x in v])
+
+            return new_array
         for c in cols:
             num += 1
             # print("{0}/{1} 正在onehot特征:{2}".format(num, total, c))
             onehotEncoderPath = save_path + "/onehot-" + c
             # 线上预测
-            onehotenc = OneHotEncoder.load(onehotEncoderPath)
-            newdf = onehotenc.transform(newdf).drop(c)
+            ohe = OneHotEncoder.load(onehotEncoderPath)
+            stringIndexer = StringIndexer(inputCol=c, outputCol=c + "Index", handleInvalid="keep")
+            model = stringIndexer.fit(df)
+            indexed = model.transform(df)
+            newdf = ohe.fit(indexed).transform(indexed).drop(c)
+            newdf = newdf.withColumnRenamed(c + "-onehot", c)
+            newdf = newdf.withColumn(c + "-onehot", toDense(c)).drop(c).drop(c + "Index")
             newdf = newdf.withColumnRenamed(c + "-onehot", c)
         print("完成onehot特征化!")
         return newdf
@@ -353,20 +367,20 @@ if __name__ == "__main__":
     sc, spark = CreateSparkContex()
     feature = Feature()
     data = [
-        ("jellyfish", "smellyfish", None, 0.8, 1, "[4,3]", [4, 3], ['牛奶', '奶制品'], "A"),
-        ("li", "lee", None, 0.5, 1, "[3]", [3], ['牛奶', '奶制品'], "A"),
-        ("luisa", "bruna", 100, 0.6, 2, None, None, ['牛奶', '奶制品'], "B"),
-        ("martha", "marhta", 0, 0.3, 3, "[2, 3, 4]", [], ['牛奶', '奶制品'], "C"),
-        ("口罩", "KN95口罩", 10, 0.9, 3, "[1, 2, 3, 4]", [1, 2, 3, 4], ['牛奶', '奶制品'], "D"),
-        ("北京", "北京市", 20, 0.8, 5, "[2]", [2], ['牛奶', '奶制品'], "D"),
-        ("纯牛奶", "牛奶", 50, 0.78, 4, "[1, 2, 3]", [1, 2, 3], ['牛奶', '奶制品'], "E"),
-        ("安慕希", "牛奶", 20, 0.8, 5, "[1, 2]", [1, 2], ['牛奶', '奶制品'], "E"),
-        ("奶", "牛", 50, 0.7, 6, "[1, 2, 3]", [1, 2, 3], ['牛奶', '奶制品'], "B"),
-        ("奶", None, None, 0.7, 6, "[1, 2, 3]", [1, 2, 3], None, "C"),
-        ("奶", None, 50, 0.7, None, "[1, 2, 3]", [1, 2, 3], None, "E"),
+        ("jellyfish", "smellyfish", None, 0.8, 1, "[4,3]", [4, 3], ['牛奶', '奶制品'], "A","A"),
+        ("li", "lee", None, 0.5, 1, "[3]", [3], ['牛奶', '奶制品'], "A","A"),
+        ("luisa", "bruna", 100, 0.6, 2, None, None, ['牛奶', '奶制品'], "B","A"),
+        ("martha", "marhta", 0, 0.3, 3, "[2, 3, 4]", [], ['牛奶', '奶制品'], "C","A"),
+        ("口罩", "KN95口罩", 10, 0.9, 3, "[1, 2, 3, 4]", [1, 2, 3, 4], ['牛奶', '奶制品'], "D","E"),
+        ("北京", "北京市", 20, 0.8, 5, "[2]", [2], ['牛奶', '奶制品'], "D","E"),
+        ("纯牛奶", "牛奶", 50, 0.78, 4, "[1, 2, 3]", [1, 2, 3], ['牛奶', '奶制品'], "E","E"),
+        ("安慕希", "牛奶", 20, 0.8, 5, "[1, 2]", [1, 2], ['牛奶', '奶制品'], "E","E"),
+        ("奶", "牛", 50, 0.7, 6, "[1, 2, 3]", [1, 2, 3], ['牛奶', '奶制品'], "B","E"),
+        ("奶", None, None, 0.7, 6, "[1, 2, 3]", [1, 2, 3], None, "C","E"),
+        ("奶", None, 50, 0.7, None, "[1, 2, 3]", [1, 2, 3], None, "E","E"),
     ]
     df = spark.createDataFrame(data, ["word1", "word2", "price", "rate", "category_id", "tag_ids", "ids", "tag_texts",
-                                      "category"])
+                                      "category","test"])
     df.show()
     df.printSchema()
     actual_df = df.withColumn("hamming_distance", ceja.hamming_distance(col("word1"), col("word2")))
@@ -420,8 +434,10 @@ if __name__ == "__main__":
     ids_columns = ["category_id"]
     # for column in ids_columns + onehot_numic_columns:
     #     df = feature.onehot(df, column)
-    df = feature.oneHotEncodeColumns(df, cols=["category"], save_path='./')
+
+    # df = feature.oneHotEncodeColumns(df, cols=["category"], save_path='./')
     df = feature.oneHotEncodeColumns(df, cols=["category_id"], save_path='./')
+    df = feature.oneHotDecodeColumns(df, cols=["category"], save_path='./')
     df.show()
     df.printSchema()
 
