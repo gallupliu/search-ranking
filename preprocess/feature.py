@@ -248,11 +248,11 @@ class Feature(object):
             stringIndexer = StringIndexer(inputCol=c, outputCol=c + "Index", handleInvalid="keep")
             model = stringIndexer.fit(df)
             indexed = model.transform(df)
-            ohe = OneHotEncoder(inputCol=c + "Index", outputCol=c + "-onehot", dropLast=False)
-            newdf = ohe.fit(indexed).transform(indexed).drop(c)
-            newdf = newdf.withColumnRenamed(c + "-onehot", c)
-            newdf = newdf.withColumn(c + "-onehot", toDense(c)).drop(c).drop(c + "Index")
-            newdf = newdf.withColumnRenamed(c + "-onehot", c)
+            ohe = OneHotEncoder(inputCol=c + "Index", outputCol=c + "-sparse", dropLast=False)
+            newdf = ohe.fit(indexed).transform(indexed)
+            # newdf = newdf.withColumnRenamed(c + "-onehot", c)
+            newdf = newdf.withColumn(c + "-onehot", toDense(c + "-sparse")).drop(c + "-sparse")
+            # newdf = newdf.withColumnRenamed(c + "-onehot", c)
             ohe.write().overwrite().save(onehotEncoderPath)
         print("完成onehot特征化!")
         # newdf.withColumn('updatetime', pyf.current_timestamp())
@@ -287,10 +287,14 @@ class Feature(object):
             stringIndexer = StringIndexer(inputCol=c, outputCol=c + "Index", handleInvalid="keep")
             model = stringIndexer.fit(df)
             indexed = model.transform(df)
-            newdf = ohe.fit(indexed).transform(indexed).drop(c)
-            newdf = newdf.withColumnRenamed(c + "-onehot", c)
-            newdf = newdf.withColumn(c + "-onehot", toDense(c)).drop(c).drop(c + "Index")
-            newdf = newdf.withColumnRenamed(c + "-onehot", c)
+            newdf = ohe.fit(indexed).transform(indexed)
+            print('decoder')
+            newdf.show()
+            # newdf = newdf.withColumnRenamed(c + "-onehot", c)
+            # newdf = newdf.withColumnRenamed(c + "-sparse", c)
+            newdf.show()
+            newdf = newdf.withColumn(c + "-onehot", toDense(c + "-sparse")).drop(c + "-sparse")
+            # newdf = newdf.withColumnRenamed(c + "-onehot", c)
         print("完成onehot特征化!")
         return newdf
 
@@ -451,16 +455,21 @@ if __name__ == "__main__":
     #     df.show()
     #
 
-    def array_to_string(my_list):
-        return '[' + ','.join([str(elem) for elem in my_list]) + ']'
-
-
-    array_to_string_udf = udf(array_to_string, StringType())
-
-    df = df.withColumn('categorystr', array_to_string_udf("category")).drop("category")
-    df = df.withColumn('categoryIdStr', array_to_string_udf("category_id")).drop("category_id")
+    # def array_to_string(my_list):
+    #     return '[' + ','.join([str(elem) for elem in my_list]) + ']'
+    #
+    #
+    # array_to_string_udf = udf(array_to_string, StringType())
+    #
+    # df = df.withColumn('categorystr', array_to_string_udf("category")).drop("category")
+    # df = df.withColumn('categoryIdStr', array_to_string_udf("category_id")).drop("category_id")
     # df.show()
+    # df.withColumn("features", to_json(struct($"features"))).write.csv(.
+    df = df.withColumn("category-onehot", pyf.to_json("category-onehot")).withColumn("category_id-onehot", pyf.to_json("category_id-onehot"))
     df.drop("tag_ids").drop("ids").drop("tag_texts").coalesce(1).write.format("com.databricks.spark.csv").option(
         "header", "true").mode(
         "overwrite").save(
         "feature.csv")
+
+    df = df.toPandas()
+    df.to_csv('test.csv',index=False)
