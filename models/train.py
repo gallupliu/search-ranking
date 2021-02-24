@@ -24,11 +24,13 @@ df = pd.DataFrame(data, index=[1, 2, 3, 4, 5])
 print(df)
 df.to_csv('./user_item_act_test.csv', index=False, sep='\t')
 
+
+# client_id post_id topic_id all_topic_fav_7 follow_topic_id click_seq
 recall_data = {"act": [0, 1, 0, 1, 1],
                "client_id": [26697605, 72054397, 92768977, 92858663, 85061501],
                "post_id": [39877457, 39877710, 39878084, 39878084, 39878084],
                "topic_id": [1, 1, 1, 177, 1],
-               "fellow_topic_id": ["225, 158, 139, 138, 140, 130, 129, 124, 123",
+               "fellow_topic_id": ["177",
                                    "225, 158, 139, 138, 140, 130, 129, 124, 123",
                                    "225, 158, 139, 138, 140, 130, 129, 124, 123",
                                    "225, 158, 139, 138, 140, 130, 129, 124, 123",

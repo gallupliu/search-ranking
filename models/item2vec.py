@@ -7,7 +7,7 @@ from pyspark import SparkContext, SparkConf
 from pyspark.sql import SparkSession
 
 ALLPUNCS_PATTERN = re.compile(r"[,\_<.>《。》、，：^$#@【】（）]")
-NUMBER_PATTERN = re.compile(r"[a-zA-Z0-9]*",re.MULTILINE|re.UNICODE)
+NUMBER_PATTERN = re.compile(r"[a-zA-Z0-9]*", re.MULTILINE | re.UNICODE)
 
 
 def clean_text(text):
@@ -38,7 +38,7 @@ def id_data_process(df):
     for seqs in df:
         texts = clean_text(seqs.tolist()[0]).strip().split(' ')
         id = []
-        for i in texts :
+        for i in texts:
             if i != '':
                 id.append(str(i))
             else:
@@ -71,6 +71,7 @@ def item2vec(texts, size, window, save_path):
             if key not in item_dict.keys():
                 item_dict[key] = model.wv[str(key)].tolist()
         json.dump(item_dict, fin)
+    print("train finished")
 
 
 if __name__ == '__main__':
@@ -78,4 +79,8 @@ if __name__ == '__main__':
     char_file_path = '../features/char.csv'
     df = load_data(char_file_path, 'chars')
     char_df = id_data_process(df)
-    item2vec(char_df,size=32,window=3,save_path='../data/char')
+    item2vec(char_df, size=32, window=3, save_path='../data/char')
+    char_file_path = '../features/id.csv'
+    df = load_data(char_file_path, 'chars')
+    char_df = id_data_process(df)
+    item2vec(char_df, size=32, window=3, save_path='../data/char')
