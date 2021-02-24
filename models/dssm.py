@@ -31,14 +31,16 @@ VarLenSparseFeat = namedtuple('VarLenSparseFeat',
 feature_columns = [
     SparseFeat(name="topic_id", voc_size=700, hash_size=None, share_embed=None, embed_dim=16, dtype='string'),
     SparseFeat(name='client_type', voc_size=2, hash_size=None, share_embed=None, embed_dim=8, dtype='string'),
+    VarLenSparseFeat(name="most_post_topic_name", voc_size=700, hash_size=None, share_embed='topic_id',
+                     weight_name=None, combiner='sum', embed_dim=16, maxlen=3, dtype='string'),
     VarLenSparseFeat(name="follow_topic_id", voc_size=700, hash_size=None, share_embed='topic_id', weight_name=None,
                      combiner='sum', embed_dim=16, maxlen=20, dtype='string'),
     VarLenSparseFeat(name="all_topic_fav_7", voc_size=700, hash_size=None, share_embed='topic_id',
                      weight_name='all_topic_fav_7_weight', combiner='sum', embed_dim=16, maxlen=5, dtype='string'),
     DenseFeat(name='item_embed', pre_embed='post_id', reduce_type=None, dim=embedding_dim, dtype='float32'),
-    DenseFeat(name='client_embed', pre_embed='read_post_id', reduce_type='mean', dim=embedding_dim,
+    DenseFeat(name='client_embed', pre_embed='click_seq', reduce_type='mean', dim=embedding_dim,
               dtype='float32'),
-    ]
+]
 
 # 用户特征及贴子特征
 user_feature_columns_name = ["all_topic_fav_7", "follow_topic_id", 'client_embed', ]
@@ -86,25 +88,31 @@ DICT_CATEGORICAL = {"topic_id": [str(i) for i in range(0, 700)],
                     "client_type": [0, 1]
                     }
 
-# DEFAULT_VALUES = [[0], [''], [''], [''], [''],
-#                   [''], [''], [''], [0.0], [''], [''], ['']]
-# COL_NAME = ['client_id', 'post_id', 'most_reply_topic_name', 'most_post_topic_name', 'follow_topic_id',
-#             'all_topic_fav_7', 'all_topic_fav_14', 'topic_id', 'post_type', 'keyword', 'click_seq', 'publisher_id']
+DEFAULT_VALUES = [[0], [''], [''], [''], [''], [''],
+                  [''], [''], [''], [0.0], [''], [''], ['']]
+COL_NAME = ['client_id', 'client_type', 'post_id', 'most_reply_topic_name', 'most_post_topic_name', 'follow_topic_id',
+            'all_topic_fav_7', 'all_topic_fav_14', 'topic_id', 'post_type', 'keyword', 'click_seq', 'publisher_id']
 
-DEFAULT_VALUES = [ [''], [''], [''], [''], [''], [''], ['']]
-COL_NAME = [ 'client_id', 'post_id', 'client_type', 'follow_topic_id', 'all_topic_fav_7', 'topic_id',
-            'read_post_id']
+# DEFAULT_VALUES = [[0], [''], [''], [''], [''],
+#                   [''], [''], [''], [0.0], [''], ['']]
+# COL_NAME = ['client_id', 'post_id', 'most_reply_topic_name', 'most_post_topic_name', 'follow_topic_id',
+#             'all_topic_fav_7', 'all_topic_fav_14', 'topic_id', 'post_type', 'keyword', 'click_seq']
 
 
 def _parse_function(example_proto):
     item_feats = tf.io.decode_csv(example_proto, record_defaults=DEFAULT_VALUES, field_delim='\t')
+    print(item_feats,len(item_feats))
+    print(COL_NAME,len(COL_NAME))
     parsed = dict(zip(COL_NAME, item_feats))
+    print(parsed.items())
 
     feature_dict = {}
     for feat_col in feature_columns:
-        print(feat_col)
+        print('feat_col:{0}'.format(feat_col))
         if isinstance(feat_col, VarLenSparseFeat):
+            print('feature_dict weight:{0}'.format(feat_col.weight_name))
             if feat_col.weight_name is not None:
+                print('parsed:{0}'.format(parsed[feat_col.name]))
                 kvpairs = tf.strings.split([parsed[feat_col.name]], ',').values[:feat_col.maxlen]
                 kvpairs = tf.strings.split(kvpairs, ':')
                 kvpairs = kvpairs.to_tensor()
@@ -116,6 +124,7 @@ def _parse_function(example_proto):
                 feat_vals = tf.strings.to_number(feat_vals, out_type=tf.float32)
                 feature_dict[feat_col.name] = feat_ids
                 feature_dict[feat_col.weight_name] = feat_vals
+                print('feature_dict:{0}'.format(feature_dict.items()))
             else:
                 feat_ids = tf.strings.split([parsed[feat_col.name]], ',').values[:feat_col.maxlen]
                 feat_ids = tf.reshape(feat_ids, shape=[-1])
@@ -124,6 +133,10 @@ def _parse_function(example_proto):
                 feature_dict[feat_col.name] = feat_ids
 
         elif isinstance(feat_col, SparseFeat):
+            print('sparsed feat_col:{0}'.format(feat_col))
+            print('feat_col.name:{0}'.format(feat_col.name))
+            print('feature_dict items:{}'.format(feature_dict.items()))
+            print('parsed name:{0}'.format(parsed[feat_col.name]))
             feature_dict[feat_col.name] = parsed[feat_col.name]
 
         elif isinstance(feat_col, DenseFeat):
@@ -669,8 +682,8 @@ tbCallBack = TensorBoard(log_dir=log_dir,  # log 目录
 
 #
 #
-total_train_sample = 115930
-total_test_sample = 1181
+total_train_sample = 5
+total_test_sample = 5
 train_steps_per_epoch = np.floor(total_train_sample / batch_size).astype(np.int32)
 test_steps_per_epoch = np.ceil(total_test_sample / val_batch_size).astype(np.int32)
 history_loss = model.fit(dataset, epochs=1,
