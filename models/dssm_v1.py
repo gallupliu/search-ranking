@@ -16,8 +16,9 @@ embedding_dim = 32
 # DEFAULT_VALUES = [[0], [''], [''], [0.0], [''], [''], [''], [''],['']]
 # COL_NAME = ['act', 'client_id', 'post_id', 'client_type', 'follow_topic_id', 'all_topic_fav_7', 'topic_id',
 #             ]
-DEFAULT_VALUES = [[0], [0.0], [''], [''], [''], [''], [''],['']]
-COL_NAME = ['act', 'client_type', 'post_id', 'post_type', 'topic_id', 'follow_topic_id', 'all_topic_fav_7', 'click_seq'
+DEFAULT_VALUES = [[0], [0.0], [''], [''], [''], [''], [''], [''], ['']]
+COL_NAME = ['act', 'client_type', "keyword", 'post_id', 'post_type', 'topic_id', 'follow_topic_id', 'all_topic_fav_7',
+            'click_seq'
             ]
 
 SparseFeat = namedtuple('SparseFeat', ['name', 'voc_size', 'share_embed', 'embed_dim', 'dtype'])
@@ -31,15 +32,17 @@ feature_columns = [SparseFeat(name="topic_id", voc_size=700, share_embed=None, e
                                     embed_dim=16, maxlen=20, dtype='string'),
                    VarLenSparseFeat(name="all_topic_fav_7", voc_size=700, share_embed='topic_id',
                                     weight_name='all_topic_fav_7_weight', embed_dim=16, maxlen=5, dtype='string'),
-                   DenseFeat(name='item_embed', pre_embed='post_id', reduce_type=None, dim=embedding_dim, dtype='float32'),
+                   DenseFeat(name='item_embed', pre_embed='post_id', reduce_type=None, dim=embedding_dim,
+                             dtype='float32'),
                    DenseFeat(name='client_embed', pre_embed='post_id', reduce_type='mean', dim=embedding_dim,
+                             dtype='float32'),
+                   DenseFeat(name='keyword_embed', pre_embed='keyword', reduce_type='mean', dim=embedding_dim,
                              dtype='float32'),
                    ]
 
 # 用户特征及贴子特征
-# user_feature_columns_name = ["follow_topic_id", 'all_topic_fav_7', 'client_type', 'client_embed']
-# item_feature_columns_name = ["topic_id", 'post_type', 'item_embed', ]
-user_feature_columns_name = ["follow_topic_id", 'all_topic_fav_7', 'client_type', 'client_embed']
+user_feature_columns_name = ["follow_topic_id",'all_topic_fav_7', 'client_type', 'client_embed',
+                             'keyword_embed']
 item_feature_columns_name = ["topic_id", "post_id", "post_type", 'item_embed']
 user_feature_columns = [col for col in feature_columns if col.name in user_feature_columns_name]
 item_feature_columns = [col for col in feature_columns if col.name in item_feature_columns_name]
@@ -72,8 +75,12 @@ def get_item_embed(file_names):
 
 
 # 获取item embedding及其查找关系
-file_names = ['../data/id.json']
-ITEM_ID2IDX, ITEM_EMBEDDING = get_item_embed(file_names)
+item_file_names = ['../data/id.json']
+ITEM_ID2IDX, ITEM_EMBEDDING = get_item_embed(item_file_names)
+
+# 获取char embedding及其查找关系
+char_file_names = ['../data/char.json']
+CHAR_ID2IDX, CHAR_EMBEDDING = get_item_embed(char_file_names)
 
 # 定义离散特征集合 ，离散特征vocabulary
 DICT_CATEGORICAL = {"topic_id": [str(i) for i in range(0, 700)],
@@ -116,17 +123,31 @@ def _parse_function(example_proto):
             print('feat_col.pre_embed')
             if feat_col.pre_embed is None:
                 feature_dict[feat_col.name] = parsed[feat_col.name]
-            elif feat_col.reduce_type is not None:
+            elif feat_col.pre_embed == 'post_id':
+                if feat_col.reduce_type is not None:
+                    print('pre_embed:{0}'.format(feat_col.pre_embed))
+                    keys = tf.strings.split(parsed[feat_col.pre_embed], ',')
+                    emb = tf.nn.embedding_lookup(params=ITEM_EMBEDDING, ids=ITEM_ID2IDX.lookup(keys))
+                    emb = tf.reduce_mean(emb, axis=0) if feat_col.reduce_type == 'mean' else tf.reduce_sum(emb, axis=0)
+                    feature_dict[feat_col.name] = emb
+                else:
+                    print(feat_col.pre_embed, parsed[feat_col.pre_embed])
+                    emb = tf.nn.embedding_lookup(params=ITEM_EMBEDDING,
+                                                 ids=ITEM_ID2IDX.lookup(parsed[feat_col.pre_embed]))
+                    feature_dict[feat_col.name] = emb
+            elif feat_col.pre_embed == 'keyword':
+                if feat_col.reduce_type is not None:
+                    print('pre_embed:{0}'.format(feat_col.pre_embed))
+                    keys = tf.strings.split(parsed[feat_col.pre_embed], ' ')
+                    emb = tf.nn.embedding_lookup(params=CHAR_EMBEDDING, ids=CHAR_ID2IDX.lookup(keys))
+                    emb = tf.reduce_mean(emb, axis=0) if feat_col.reduce_type == 'mean' else tf.reduce_sum(emb, axis=0)
+                    feature_dict[feat_col.name] = emb
+                else:
+                    print(feat_col.pre_embed, parsed[feat_col.pre_embed])
+                    emb = tf.nn.embedding_lookup(params=CHAR_EMBEDDING,
+                                                 ids=CHAR_ID2IDX.lookup(parsed[feat_col.pre_embed]))
+                    feature_dict[feat_col.name] = emb
 
-                print(feat_col.pre_embed)
-                keys = tf.strings.split(parsed[feat_col.pre_embed], ',')
-                emb = tf.nn.embedding_lookup(params=ITEM_EMBEDDING, ids=ITEM_ID2IDX.lookup(keys))
-                emb = tf.reduce_mean(emb, axis=0) if feat_col.reduce_type == 'mean' else tf.reduce_sum(emb, axis=0)
-                feature_dict[feat_col.name] = emb
-            else:
-                print(feat_col.pre_embed, parsed[feat_col.pre_embed])
-                emb = tf.nn.embedding_lookup(params=ITEM_EMBEDDING, ids=ITEM_ID2IDX.lookup(parsed[feat_col.pre_embed]))
-                feature_dict[feat_col.name] = emb
         else:
             raise Exception("unknown feature_columns....")
 
@@ -204,7 +225,7 @@ class SparseVocabLayer(Layer):
         vals = tf.range(1, len(keys) + 1)
         vals = tf.constant(vals, dtype=tf.int32)
         keys = tf.constant(keys)
-        print('keys:{0}'.format(keys))
+        # print('keys:{0}'.format(keys))
         self.table = tf.lookup.StaticHashTable(
             tf.lookup.KeyValueTensorInitializer(keys, vals), 0)
 
@@ -230,12 +251,12 @@ class EncodeMultiEmbedding(Layer):
     def call(self, inputs):
         if self.has_weight:
             idx, val = inputs
-            print('sp_ids:{0}'.format(idx))
+            # print('sp_ids:{0}'.format(idx))
             combiner_embed = tf.nn.embedding_lookup_sparse(self.embedding, sp_ids=idx, sp_weights=val, combiner='sum')
         else:
 
             idx = inputs
-            print('ids:{0}'.format(idx))
+            # print('ids:{0}'.format(idx))
             combiner_embed = tf.nn.embedding_lookup_sparse(self.embedding, sp_ids=idx, sp_weights=None, combiner='mean')
         return tf.expand_dims(combiner_embed, 1)
 
