@@ -1,42 +1,49 @@
 import re
 import numpy as np
+import pandas as pd
 import multiprocessing
 import json
 from gensim.models import Word2Vec
-from pyspark import SparkContext, SparkConf
-from pyspark.sql import SparkSession
+# from pyspark import SparkContext, SparkConf
+# from pyspark.sql import SparkSession
 
-ALLPUNCS_PATTERN = re.compile(r"[,\_<.>《。》、，：^$#@【】（）]")
-NUMBER_PATTERN = re.compile(r"[a-zA-Z0-9]*", re.MULTILINE | re.UNICODE)
+ALLPUNCS_PATTERN = re.compile(r"[,\_<.>《。》、，：^$#@【】（）()]")
+NUMBER_PATTERN = re.compile(r"[a-zA-Z]*", re.MULTILINE | re.UNICODE)
 
 
 def clean_text(text):
     text = re.sub(ALLPUNCS_PATTERN, ' ', text)
-    text = re.sub(NUMBER_PATTERN, ' ', text)
+    # text = re.sub(NUMBER_PATTERN, ' ', text)
     return text
 
 
-def CreateSparkContex():
-    sparkconf = SparkConf().setAppName("MYPRO").set("spark.ui.showConsoleProgress", "false")
-    sc = SparkContext(conf=sparkconf)
-    print("master:" + sc.master)
-    sc.setLogLevel("WARN")
-    spark = SparkSession.builder.config(conf=sparkconf).getOrCreate()
-    return sc, spark
+# def CreateSparkContex():
+#     sparkconf = SparkConf().setAppName("MYPRO").set("spark.ui.showConsoleProgress", "false")
+#     sc = SparkContext(conf=sparkconf)
+#     print("master:" + sc.master)
+#     sc.setLogLevel("WARN")
+#     spark = SparkSession.builder.config(conf=sparkconf).getOrCreate()
+#     return sc, spark
 
+#
+# def load_data(files_path, column):
+#     df = spark.read.format('csv') \
+#         .option('header', 'true') \
+#         .option('delemiter', '\t') \
+#         .load(files_path)
+#     return np.array(df.select(column).collect())
 
-def load_data(files_path, column):
-    df = spark.read.format('csv') \
-        .option('header', 'true') \
-        .option('delemiter', ',') \
-        .load(files_path)
-    return np.array(df.select(column).collect())
-
+def load_data(files_path,column):
+    df = pd.read_csv(files_path,sep='\t')
+    return np.array(df[column])
 
 def id_data_process(df):
     ids = []
     for seqs in df:
-        texts = clean_text(seqs.tolist()[0]).strip().split(' ')
+        if isinstance(seqs,str):
+            texts = seqs.split(',')
+        else:
+            texts = clean_text(seqs.tolist()[0]).strip().split(' ')
         id = []
         for i in texts:
             if i != '':
@@ -75,12 +82,17 @@ def item2vec(texts, size, window, save_path):
 
 
 if __name__ == '__main__':
-    sc, spark = CreateSparkContex()
-    char_file_path = '../features/char.csv'
-    df = load_data(char_file_path, 'chars')
+    # sc, spark = CreateSparkContex()
+    # char_file_path = '../features/char.csv'
+    # df = load_data(char_file_path, 'chars')
+    # char_df = id_data_process(df)
+    # item2vec(char_df, size=32, window=3, save_path='../data/char')
+    char_file_path = './recall_user_item_act_test.csv'
+    df = load_data(char_file_path, 'click_seq')
     char_df = id_data_process(df)
-    item2vec(char_df, size=32, window=3, save_path='../data/char')
-    char_file_path = '../features/id.csv'
-    df = load_data(char_file_path, 'chars')
-    char_df = id_data_process(df)
-    item2vec(char_df, size=32, window=3, save_path='../data/char')
+    item2vec(char_df, size=32, window=3, save_path='../data/id')
+
+    # char_file_path = './movielens_sample.txt'
+    # df = load_data(char_file_path, 'title')
+    # char_df = id_data_process(df)
+    # item2vec(char_df, size=32, window=3, save_path='../data/char_en')

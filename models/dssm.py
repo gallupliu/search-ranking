@@ -202,6 +202,8 @@ dataset = dataset.padded_batch(batch_size=batch_size,
                                padded_shapes=pad_shapes,
                                padding_values=pad_values)  # 每1024条数据为一个batch，生成一个新的Datasets
 dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+print('test')
+print(next(iter(dataset)))
 
 # 验证集
 filenames_val = tf.data.Dataset.list_files(['./recall_user_item_act_test.csv'])
