@@ -31,16 +31,16 @@ feature_columns = [SparseFeat(name="topic_id", voc_size=700, share_embed=None, e
                                     embed_dim=16, maxlen=20, dtype='string'),
                    VarLenSparseFeat(name="all_topic_fav_7", voc_size=700, share_embed='topic_id',
                                     weight_name='all_topic_fav_7_weight', embed_dim=16, maxlen=5, dtype='string'),
-                   # DenseFeat(name='item_embed', pre_embed='post_id', reduce_type=None, dim=embedding_dim, dtype='float32'),
-                   # DenseFeat(name='client_embed', pre_embed='post_id', reduce_type='mean', dim=embedding_dim,
-                   #           dtype='float32'),
+                   DenseFeat(name='item_embed', pre_embed='post_id', reduce_type=None, dim=embedding_dim, dtype='float32'),
+                   DenseFeat(name='client_embed', pre_embed='post_id', reduce_type='mean', dim=embedding_dim,
+                             dtype='float32'),
                    ]
 
 # 用户特征及贴子特征
 # user_feature_columns_name = ["follow_topic_id", 'all_topic_fav_7', 'client_type', 'client_embed']
 # item_feature_columns_name = ["topic_id", 'post_type', 'item_embed', ]
-user_feature_columns_name = ["follow_topic_id", 'all_topic_fav_7', 'client_type']
-item_feature_columns_name = ["topic_id", "post_id", "post_type"]
+user_feature_columns_name = ["follow_topic_id", 'all_topic_fav_7', 'client_type', 'client_embed']
+item_feature_columns_name = ["topic_id", "post_id", "post_type", 'item_embed']
 user_feature_columns = [col for col in feature_columns if col.name in user_feature_columns_name]
 item_feature_columns = [col for col in feature_columns if col.name in item_feature_columns_name]
 
@@ -118,13 +118,13 @@ def _parse_function(example_proto):
                 feature_dict[feat_col.name] = parsed[feat_col.name]
             elif feat_col.reduce_type is not None:
 
-                print(keys, feat_col.pre_embed)
+                print(feat_col.pre_embed)
                 keys = tf.strings.split(parsed[feat_col.pre_embed], ',')
                 emb = tf.nn.embedding_lookup(params=ITEM_EMBEDDING, ids=ITEM_ID2IDX.lookup(keys))
                 emb = tf.reduce_mean(emb, axis=0) if feat_col.reduce_type == 'mean' else tf.reduce_sum(emb, axis=0)
                 feature_dict[feat_col.name] = emb
             else:
-                print(keys, feat_col.pre_embed, len(parsed[feat_col.pre_embed]))
+                print(feat_col.pre_embed, parsed[feat_col.pre_embed])
                 emb = tf.nn.embedding_lookup(params=ITEM_EMBEDDING, ids=ITEM_ID2IDX.lookup(parsed[feat_col.pre_embed]))
                 feature_dict[feat_col.name] = emb
         else:
