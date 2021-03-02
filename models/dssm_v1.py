@@ -16,8 +16,8 @@ embedding_dim = 32
 # DEFAULT_VALUES = [[0], [''], [''], [0.0], [''], [''], [''], [''],['']]
 # COL_NAME = ['act', 'client_id', 'post_id', 'client_type', 'follow_topic_id', 'all_topic_fav_7', 'topic_id',
 #             ]
-DEFAULT_VALUES = [[0], [0.0], [''], [''], [''], ['']]
-COL_NAME = ['act', 'client_type', 'topic_id', 'follow_topic_id', 'all_topic_fav_7', 'click_seq'
+DEFAULT_VALUES = [[0], [0.0], [''], [''], [''], [''], [''],['']]
+COL_NAME = ['act', 'client_type', 'post_id', 'post_type', 'topic_id', 'follow_topic_id', 'all_topic_fav_7', 'click_seq'
             ]
 
 SparseFeat = namedtuple('SparseFeat', ['name', 'voc_size', 'share_embed', 'embed_dim', 'dtype'])
@@ -40,7 +40,7 @@ feature_columns = [SparseFeat(name="topic_id", voc_size=700, share_embed=None, e
 # user_feature_columns_name = ["follow_topic_id", 'all_topic_fav_7', 'client_type', 'client_embed']
 # item_feature_columns_name = ["topic_id", 'post_type', 'item_embed', ]
 user_feature_columns_name = ["follow_topic_id", 'all_topic_fav_7', 'client_type']
-item_feature_columns_name = ["topic_id"]
+item_feature_columns_name = ["topic_id", "post_id", "post_type"]
 user_feature_columns = [col for col in feature_columns if col.name in user_feature_columns_name]
 item_feature_columns = [col for col in feature_columns if col.name in item_feature_columns_name]
 
