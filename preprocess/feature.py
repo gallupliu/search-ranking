@@ -230,15 +230,17 @@ class Feature(object):
         total = len(cols)
         print("正在onehot特征化...")
 
-        @udf(ArrayType(IntegerType()))
+        @udf(StringType())
         def toDense(v):
             print(v)
             print(Vectors.dense(v).toArray())
             v = DenseVector(v)
 
-            new_array = list([int(x) for x in v])
-
-            return new_array
+            new_array = list([str(int(x)) for x in v])
+            print(v,type(v))
+            print(' '.join(new_array))
+            print(type(' '.join(new_array)))
+            return ' '.join(new_array)
 
         for c in cols:
             num += 1
@@ -251,7 +253,7 @@ class Feature(object):
             ohe = OneHotEncoder(inputCol=c + "Index", outputCol=c + "-sparse", dropLast=False)
             newdf = ohe.fit(indexed).transform(indexed)
             # newdf = newdf.withColumnRenamed(c + "-onehot", c)
-            newdf = newdf.withColumn(c + "-onehot", toDense(c + "-sparse")).drop(c + "-sparse")
+            newdf = newdf.withColumn(c + "-onehot", toDense(c + "-sparse")).drop(c + "-sparse").drop(c + "Index")
             # newdf = newdf.withColumnRenamed(c + "-onehot", c)
             ohe.write().overwrite().save(onehotEncoderPath)
         print("完成onehot特征化!")
@@ -269,15 +271,15 @@ class Feature(object):
         num = 0
         total = len(cols)
         print("正在onehot特征化...")
-        @udf(ArrayType(IntegerType()))
+        @udf(StringType())
         def toDense(v):
             print(v)
             print(Vectors.dense(v).toArray())
             v = DenseVector(v)
 
-            new_array = list([int(x) for x in v])
+            new_array = list([str(int(x)) for x in v])
 
-            return new_array
+            return ' '.join(new_array)
         for c in cols:
             num += 1
             # print("{0}/{1} 正在onehot特征:{2}".format(num, total, c))
@@ -293,7 +295,7 @@ class Feature(object):
             # newdf = newdf.withColumnRenamed(c + "-onehot", c)
             # newdf = newdf.withColumnRenamed(c + "-sparse", c)
             newdf.show()
-            newdf = newdf.withColumn(c + "-onehot", toDense(c + "-sparse")).drop(c + "-sparse")
+            newdf = newdf.withColumn(c + "-onehot", toDense(c + "-sparse")).drop(c + "-sparse").drop(c + "Index")
             # newdf = newdf.withColumnRenamed(c + "-onehot", c)
         print("完成onehot特征化!")
         return newdf
@@ -465,7 +467,6 @@ if __name__ == "__main__":
     # df = df.withColumn('categoryIdStr', array_to_string_udf("category_id")).drop("category_id")
     # df.show()
     # df.withColumn("features", to_json(struct($"features"))).write.csv(.
-    df = df.withColumn("category-onehot", pyf.to_json("category-onehot")).withColumn("category_id-onehot", pyf.to_json("category_id-onehot"))
     df.drop("tag_ids").drop("ids").drop("tag_texts").coalesce(1).write.format("com.databricks.spark.csv").option(
         "header", "true").mode(
         "overwrite").save(

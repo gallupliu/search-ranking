@@ -11,108 +11,92 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.callbacks import TensorBoard
 
 embedding_dim = 32
-# 定义DSSM输入变量参数
-SparseFeat = namedtuple('SparseFeat', ['name', 'voc_size', 'hash_size', 'share_embed', 'embed_dim', 'dtype'])
+# 'act', 'client_id', 'post_id', 'topic_id','post_type','client_type', 'follow_topic_id', 'all_topic_fav_7',
+#             'click_seq'
+# DEFAULT_VALUES = [[0], [''], [''], [0.0], [''], [''], [''], [''],['']]
+# COL_NAME = ['act', 'client_id', 'post_id', 'client_type', 'follow_topic_id', 'all_topic_fav_7', 'topic_id',
+#             ]
+DEFAULT_VALUES = [[0], [0.0], [''], [''], [''], [''], [''], [''], ['']]
+COL_NAME = ['act', 'client_type', "keyword", 'post_id', 'post_type', 'topic_id', 'follow_topic_id', 'all_topic_fav_7',
+            'click_seq'
+            ]
+
+SparseFeat = namedtuple('SparseFeat', ['name', 'voc_size', 'share_embed', 'embed_dim', 'dtype'])
 DenseFeat = namedtuple('DenseFeat', ['name', 'pre_embed', 'reduce_type', 'dim', 'dtype'])
 VarLenSparseFeat = namedtuple('VarLenSparseFeat',
-                              ['name', 'voc_size', 'hash_size', 'share_embed', 'weight_name', 'combiner', 'embed_dim',
-                               'maxlen', 'dtype'])
+                              ['name', 'voc_size', 'share_embed', 'weight_name', 'embed_dim', 'maxlen', 'dtype'])
 
-# feature_columns = [
-#     SparseFeat(name="topic_id", voc_size=700, hash_size=None, share_embed=None, embed_dim=16, dtype='string'),
-#     VarLenSparseFeat(name="most_post_topic_name", voc_size=700, hash_size=None, share_embed='topic_id',
-#                      weight_name=None, combiner='sum', embed_dim=16, maxlen=3, dtype='string'),
-#     VarLenSparseFeat(name="all_topic_fav_7", voc_size=700, hash_size=None, share_embed='topic_id',
-#                      weight_name='all_topic_fav_7_weight', combiner='sum', embed_dim=16, maxlen=5, dtype='string'),
-#     DenseFeat(name='item_embed', pre_embed='post_id', reduce_type=None, dim=768, dtype='float32'),
-#     DenseFeat(name='client_embed', pre_embed='click_seq', reduce_type='mean', dim=768, dtype='float32'),
-# ]
-
-feature_columns = [
-    SparseFeat(name="topic_id", voc_size=700, hash_size=None, share_embed=None, embed_dim=16, dtype='string'),
-    SparseFeat(name='client_type', voc_size=2, hash_size=None, share_embed=None, embed_dim=8, dtype='string'),
-    VarLenSparseFeat(name="most_post_topic_name", voc_size=700, hash_size=None, share_embed='topic_id',
-                     weight_name=None, combiner='sum', embed_dim=16, maxlen=3, dtype='string'),
-    VarLenSparseFeat(name="follow_topic_id", voc_size=700, hash_size=None, share_embed='topic_id', weight_name=None,
-                     combiner='sum', embed_dim=16, maxlen=20, dtype='string'),
-    VarLenSparseFeat(name="all_topic_fav_7", voc_size=700, hash_size=None, share_embed='topic_id',
-                     weight_name='all_topic_fav_7_weight', combiner='sum', embed_dim=16, maxlen=5, dtype='string'),
-    DenseFeat(name='item_embed', pre_embed='post_id', reduce_type=None, dim=embedding_dim, dtype='float32'),
-    DenseFeat(name='client_embed', pre_embed='click_seq', reduce_type='mean', dim=embedding_dim,
-              dtype='float32'),
-]
+feature_columns = [SparseFeat(name="topic_id", voc_size=700, share_embed=None, embed_dim=16, dtype='string'),
+                   SparseFeat(name='client_type', voc_size=2, share_embed=None, embed_dim=8, dtype='float32'),
+                   VarLenSparseFeat(name="follow_topic_id", voc_size=700, share_embed='topic_id', weight_name=None,
+                                    embed_dim=16, maxlen=20, dtype='string'),
+                   VarLenSparseFeat(name="all_topic_fav_7", voc_size=700, share_embed='topic_id',
+                                    weight_name='all_topic_fav_7_weight', embed_dim=16, maxlen=5, dtype='string'),
+                   DenseFeat(name='item_embed', pre_embed='post_id', reduce_type=None, dim=embedding_dim,
+                             dtype='float32'),
+                   DenseFeat(name='client_embed', pre_embed='post_id', reduce_type='mean', dim=embedding_dim,
+                             dtype='float32'),
+                   DenseFeat(name='keyword_embed', pre_embed='keyword', reduce_type='mean', dim=embedding_dim,
+                             dtype='float32'),
+                   ]
 
 # 用户特征及贴子特征
-user_feature_columns_name = ["all_topic_fav_7", "follow_topic_id", 'client_embed', ]
-item_feature_columns_name = ['item_embed', "topic_id"]
+user_feature_columns_name = ["follow_topic_id",'all_topic_fav_7', 'client_type', 'client_embed',
+                             'keyword_embed']
+item_feature_columns_name = ["topic_id", "post_id", "post_type", 'item_embed']
 user_feature_columns = [col for col in feature_columns if col.name in user_feature_columns_name]
 item_feature_columns = [col for col in feature_columns if col.name in item_feature_columns_name]
 
 
 def get_item_embed(file_names):
-    item_bert_embed_dict = {}
     item_bert_embed = []
-    item_bert_id = []
+    item_id = []
     for file in file_names:
         with open(file, 'r') as f:
             for line in f:
                 feature_json = json.loads(line)
-                # tid = feature_json['州']
-                # embedding = feature_json['features'][0]['layers'][0]['values']
-                # item_bert_embed_dict[tid] = embedding
-    for k, v in feature_json.items():
-        item_bert_id.append(k)
-        item_bert_embed.append(v)
+                # item_bert_embed.append(feature_json['post_id'])
+                # item_id.append(feature_json['values'])
+                for k, v in feature_json.items():
+                    item_bert_embed.append(v)
+                    item_id.append(k)
 
+    print(len(item_id))
     item_id2idx = tf.lookup.StaticHashTable(
         tf.lookup.KeyValueTensorInitializer(
-            keys=item_bert_id,
-            values=range(1, len(item_bert_id) + 1),
+            keys=item_id,
+            values=range(1, len(item_id) + 1),
             key_dtype=tf.string,
             value_dtype=tf.int32),
         default_value=0)
     item_bert_embed = [[0.0] * embedding_dim] + item_bert_embed
     item_embedding = tf.constant(item_bert_embed, dtype=tf.float32)
-
     return item_id2idx, item_embedding
 
 
-# user_id = get_client_id(ds)
-
 # 获取item embedding及其查找关系
-file_names = ['./item_embed.json']
-ITEM_ID2IDX, ITEM_EMBEDDING = get_item_embed(file_names)
+item_file_names = ['../data/id.json']
+ITEM_ID2IDX, ITEM_EMBEDDING = get_item_embed(item_file_names)
+
+# 获取char embedding及其查找关系
+char_file_names = ['../data/char.json']
+CHAR_ID2IDX, CHAR_EMBEDDING = get_item_embed(char_file_names)
 
 # 定义离散特征集合 ，离散特征vocabulary
 DICT_CATEGORICAL = {"topic_id": [str(i) for i in range(0, 700)],
                     "client_type": [0, 1]
                     }
 
-DEFAULT_VALUES = [[0], [''], [''], [''], [''], [''],
-                  [''], [''], [''], [0.0], [''], [''], ['']]
-COL_NAME = ['client_id', 'client_type', 'post_id', 'most_reply_topic_name', 'most_post_topic_name', 'follow_topic_id',
-            'all_topic_fav_7', 'all_topic_fav_14', 'topic_id', 'post_type', 'keyword', 'click_seq', 'publisher_id']
-
-# DEFAULT_VALUES = [[0], [''], [''], [''], [''],
-#                   [''], [''], [''], [0.0], [''], ['']]
-# COL_NAME = ['client_id', 'post_id', 'most_reply_topic_name', 'most_post_topic_name', 'follow_topic_id',
-#             'all_topic_fav_7', 'all_topic_fav_14', 'topic_id', 'post_type', 'keyword', 'click_seq']
-
 
 def _parse_function(example_proto):
     item_feats = tf.io.decode_csv(example_proto, record_defaults=DEFAULT_VALUES, field_delim='\t')
-    print(item_feats,len(item_feats))
-    print(COL_NAME,len(COL_NAME))
     parsed = dict(zip(COL_NAME, item_feats))
-    print(parsed.items())
-
+    print('paresed:{0}'.format(parsed))
     feature_dict = {}
     for feat_col in feature_columns:
-        print('feat_col:{0}'.format(feat_col))
+        print('feat_col：{0}'.format(feat_col))
         if isinstance(feat_col, VarLenSparseFeat):
-            print('feature_dict weight:{0}'.format(feat_col.weight_name))
             if feat_col.weight_name is not None:
-                print('parsed:{0}'.format(parsed[feat_col.name]))
                 kvpairs = tf.strings.split([parsed[feat_col.name]], ',').values[:feat_col.maxlen]
                 kvpairs = tf.strings.split(kvpairs, ':')
                 kvpairs = kvpairs.to_tensor()
@@ -124,7 +108,6 @@ def _parse_function(example_proto):
                 feat_vals = tf.strings.to_number(feat_vals, out_type=tf.float32)
                 feature_dict[feat_col.name] = feat_ids
                 feature_dict[feat_col.weight_name] = feat_vals
-                print('feature_dict:{0}'.format(feature_dict.items()))
             else:
                 feat_ids = tf.strings.split([parsed[feat_col.name]], ',').values[:feat_col.maxlen]
                 feat_ids = tf.reshape(feat_ids, shape=[-1])
@@ -133,27 +116,42 @@ def _parse_function(example_proto):
                 feature_dict[feat_col.name] = feat_ids
 
         elif isinstance(feat_col, SparseFeat):
-            print('sparsed feat_col:{0}'.format(feat_col))
-            print('feat_col.name:{0}'.format(feat_col.name))
-            print('feature_dict items:{}'.format(feature_dict.items()))
-            print('parsed name:{0}'.format(parsed[feat_col.name]))
+            print('name:{0},value:{1}'.format(feat_col.name, parsed[feat_col.name]))
             feature_dict[feat_col.name] = parsed[feat_col.name]
 
         elif isinstance(feat_col, DenseFeat):
-            if not feat_col.pre_embed:
+            print('feat_col.pre_embed')
+            if feat_col.pre_embed is None:
                 feature_dict[feat_col.name] = parsed[feat_col.name]
-            elif feat_col.reduce_type is not None:
-                keys = tf.strings.split(parsed[feat_col.pre_embed], ',')
-                emb = tf.nn.embedding_lookup(params=ITEM_EMBEDDING, ids=ITEM_ID2IDX.lookup(keys))
-                emb = tf.reduce_mean(emb, axis=0) if feat_col.reduce_type == 'mean' else tf.reduce_sum(emb, axis=0)
-                feature_dict[feat_col.name] = emb
-            else:
-                emb = tf.nn.embedding_lookup(params=ITEM_EMBEDDING, ids=ITEM_ID2IDX.lookup(parsed[feat_col.pre_embed]))
-                feature_dict[feat_col.name] = emb
+            elif feat_col.pre_embed == 'post_id':
+                if feat_col.reduce_type is not None:
+                    print('pre_embed:{0}'.format(feat_col.pre_embed))
+                    keys = tf.strings.split(parsed[feat_col.pre_embed], ',')
+                    emb = tf.nn.embedding_lookup(params=ITEM_EMBEDDING, ids=ITEM_ID2IDX.lookup(keys))
+                    emb = tf.reduce_mean(emb, axis=0) if feat_col.reduce_type == 'mean' else tf.reduce_sum(emb, axis=0)
+                    feature_dict[feat_col.name] = emb
+                else:
+                    print(feat_col.pre_embed, parsed[feat_col.pre_embed])
+                    emb = tf.nn.embedding_lookup(params=ITEM_EMBEDDING,
+                                                 ids=ITEM_ID2IDX.lookup(parsed[feat_col.pre_embed]))
+                    feature_dict[feat_col.name] = emb
+            elif feat_col.pre_embed == 'keyword':
+                if feat_col.reduce_type is not None:
+                    print('pre_embed:{0}'.format(feat_col.pre_embed))
+                    keys = tf.strings.split(parsed[feat_col.pre_embed], ' ')
+                    emb = tf.nn.embedding_lookup(params=CHAR_EMBEDDING, ids=CHAR_ID2IDX.lookup(keys))
+                    emb = tf.reduce_mean(emb, axis=0) if feat_col.reduce_type == 'mean' else tf.reduce_sum(emb, axis=0)
+                    feature_dict[feat_col.name] = emb
+                else:
+                    print(feat_col.pre_embed, parsed[feat_col.pre_embed])
+                    emb = tf.nn.embedding_lookup(params=CHAR_EMBEDDING,
+                                                 ids=CHAR_ID2IDX.lookup(parsed[feat_col.pre_embed]))
+                    feature_dict[feat_col.name] = emb
+
         else:
             raise Exception("unknown feature_columns....")
 
-    label = 1
+    label = parsed['act']
 
     return feature_dict, label
 
@@ -164,8 +162,9 @@ pad_values = {}
 for feat_col in feature_columns:
     if isinstance(feat_col, VarLenSparseFeat):
         max_tokens = feat_col.maxlen
+        print('max_tokens:{0}'.format(max_tokens))
         pad_shapes[feat_col.name] = tf.TensorShape([max_tokens])
-        pad_values[feat_col.name] = '0' if feat_col.dtype == 'string' else 0
+        pad_values[feat_col.name] = ''
         if feat_col.weight_name is not None:
             pad_shapes[feat_col.weight_name] = tf.TensorShape([max_tokens])
             pad_values[feat_col.weight_name] = tf.constant(-1, dtype=tf.float32)
@@ -174,12 +173,12 @@ for feat_col in feature_columns:
     elif isinstance(feat_col, SparseFeat):
         if feat_col.dtype == 'string':
             pad_shapes[feat_col.name] = tf.TensorShape([])
-            pad_values[feat_col.name] = '0'
+            pad_values[feat_col.name] = '9999'
         else:
             pad_shapes[feat_col.name] = tf.TensorShape([])
             pad_values[feat_col.name] = 0.0
     elif isinstance(feat_col, DenseFeat):
-        if not feat_col.pre_embed:
+        if feat_col.pre_embed is None:
             pad_shapes[feat_col.name] = tf.TensorShape([])
             pad_values[feat_col.name] = 0.0
         else:
@@ -188,29 +187,30 @@ for feat_col in feature_columns:
 
 pad_shapes = (pad_shapes, (tf.TensorShape([])))
 pad_values = (pad_values, (tf.constant(0, dtype=tf.int32)))
+
 filenames = tf.data.Dataset.list_files([
     './recall_user_item_act_test.csv'
 ])
 dataset = filenames.flat_map(
     lambda filepath: tf.data.TextLineDataset(filepath).skip(1))
 
-batch_size = 5
+batch_size = 2
 dataset = dataset.map(_parse_function, num_parallel_calls=60)
 dataset = dataset.repeat()
-dataset = dataset.shuffle(buffer_size=batch_size)  # 在缓冲区中随机打乱数据
+dataset = dataset.shuffle(buffer_size=batch_size * 2)  # 在缓冲区中随机打乱数据
 dataset = dataset.padded_batch(batch_size=batch_size,
                                padded_shapes=pad_shapes,
                                padding_values=pad_values)  # 每1024条数据为一个batch，生成一个新的Datasets
 dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
 print('test')
 print(next(iter(dataset)))
-
-# 验证集
+for example in dataset.take(1):
+    print(example)
 filenames_val = tf.data.Dataset.list_files(['./recall_user_item_act_test.csv'])
 dataset_val = filenames_val.flat_map(
     lambda filepath: tf.data.TextLineDataset(filepath).skip(1))
 
-val_batch_size = 512
+val_batch_size = 2
 dataset_val = dataset_val.map(_parse_function, num_parallel_calls=60)
 dataset_val = dataset_val.padded_batch(batch_size=val_batch_size,
                                        padded_shapes=pad_shapes,
@@ -218,152 +218,125 @@ dataset_val = dataset_val.padded_batch(batch_size=val_batch_size,
 dataset_val = dataset_val.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
 
 
-# 多值查找表稀疏SparseTensor >>  EncodeMultiEmbedding
-class VocabLayer(Layer):
-    def __init__(self, keys, mask_value=None, **kwargs):
-        super(VocabLayer, self).__init__(**kwargs)
-        self.mask_value = mask_value
-        vals = tf.range(2, len(keys) + 2)
+# 离散多值查找表 转稀疏SparseTensor >> EncodeMultiEmbedding >>tf.nn.embedding_lookup_sparse的sp_ids参数中
+class SparseVocabLayer(Layer):
+    def __init__(self, keys, **kwargs):
+        super(SparseVocabLayer, self).__init__(**kwargs)
+        vals = tf.range(1, len(keys) + 1)
         vals = tf.constant(vals, dtype=tf.int32)
         keys = tf.constant(keys)
+        # print('keys:{0}'.format(keys))
         self.table = tf.lookup.StaticHashTable(
-            tf.lookup.KeyValueTensorInitializer(keys, vals), 1)
+            tf.lookup.KeyValueTensorInitializer(keys, vals), 0)
 
     def call(self, inputs):
-        idx = self.table.lookup(inputs)
-        if self.mask_value is not None:
-            masks = tf.not_equal(inputs, self.mask_value)
-            paddings = tf.ones_like(idx) * (0)  # mask成 0
-            idx = tf.where(masks, idx, paddings)
-        return idx
-
-    def get_config(self):
-        config = super(VocabLayer, self).get_config()
-        config.update({'mask_value': self.mask_value, })
-        return config
+        input_idx = tf.where(tf.not_equal(inputs, ''))
+        input_sparse = tf.SparseTensor(input_idx, tf.gather_nd(inputs, input_idx), tf.shape(inputs, out_type=tf.int64))
+        return tf.SparseTensor(indices=input_sparse.indices,
+                               values=self.table.lookup(input_sparse.values),
+                               dense_shape=input_sparse.dense_shape)
 
 
-class EmbeddingLookupSparse(Layer):
-    def __init__(self, embedding, has_weight=False, combiner='sum', **kwargs):
+# 自定义Embedding层，初始化时，需要传入预先定义好的embedding矩阵，好处可以共享embedding矩阵
+class EncodeMultiEmbedding(Layer):
+    def __init__(self, embedding, has_weight=False, **kwargs):
 
-        super(EmbeddingLookupSparse, self).__init__(**kwargs)
+        super(EncodeMultiEmbedding, self).__init__(**kwargs)
         self.has_weight = has_weight
-        self.combiner = combiner
         self.embedding = embedding
 
     def build(self, input_shape):
-        super(EmbeddingLookupSparse, self).build(input_shape)
+        super(EncodeMultiEmbedding, self).build(input_shape)
 
     def call(self, inputs):
         if self.has_weight:
             idx, val = inputs
-            combiner_embed = tf.nn.embedding_lookup_sparse(self.embedding, sp_ids=idx, sp_weights=val,
-                                                           combiner=self.combiner)
+            # print('sp_ids:{0}'.format(idx))
+            combiner_embed = tf.nn.embedding_lookup_sparse(self.embedding, sp_ids=idx, sp_weights=val, combiner='sum')
         else:
+
             idx = inputs
-            combiner_embed = tf.nn.embedding_lookup_sparse(self.embedding, sp_ids=idx, sp_weights=None,
-                                                           combiner=self.combiner)
+            # print('ids:{0}'.format(idx))
+            combiner_embed = tf.nn.embedding_lookup_sparse(self.embedding, sp_ids=idx, sp_weights=None, combiner='mean')
         return tf.expand_dims(combiner_embed, 1)
 
     def get_config(self):
-        config = super(EmbeddingLookupSparse, self).get_config()
-        config.update({'has_weight': self.has_weight, 'combiner': self.combiner})
+        config = super(EncodeMultiEmbedding, self).get_config()
+        config.update({'has_weight': self.has_weight})
         return config
 
 
-class EmbeddingLookup(Layer):
-    def __init__(self, embedding, **kwargs):
-        super(EmbeddingLookup, self).__init__(**kwargs)
-        self.embedding = embedding
-
-    def build(self, input_shape):
-        super(EmbeddingLookup, self).build(input_shape)
-
-    def call(self, inputs):
-        idx = inputs
-        embed = tf.nn.embedding_lookup(params=self.embedding, ids=idx)
-        return embed
-
-    def get_config(self):
-        config = super(EmbeddingLookup, self).get_config()
-        return config
-
-
-# 稠密转稀疏
-class DenseToSparseTensor(Layer):
-    def __init__(self, mask_value=-1, **kwargs):
-        super(DenseToSparseTensor, self).__init__()
-        self.mask_value = mask_value
+# 稠密权重转稀疏格式输入到tf.nn.embedding_lookup_sparse的sp_weights参数中
+class Dense2SparseTensor(Layer):
+    def __init__(self):
+        super(Dense2SparseTensor, self).__init__()
 
     def call(self, dense_tensor):
-        idx = tf.where(tf.not_equal(dense_tensor, tf.constant(self.mask_value, dtype=dense_tensor.dtype)))
-        sparse_tensor = tf.SparseTensor(idx, tf.gather_nd(dense_tensor, idx), tf.shape(dense_tensor, out_type=tf.int64))
-        return sparse_tensor
+        weight_idx = tf.where(tf.not_equal(dense_tensor, tf.constant(-1, dtype=tf.float32)))
+        weight_sparse = tf.SparseTensor(weight_idx, tf.gather_nd(dense_tensor, weight_idx),
+                                        tf.shape(dense_tensor, out_type=tf.int64))
+        return weight_sparse
 
     def get_config(self):
-        config = super(DenseToSparseTensor, self).get_config()
-        config.update({'mask_value': self.mask_value})
+        config = super(Dense2SparseTensor, self).get_config()
         return config
 
 
-class HashLayer(Layer):
-    """
-    hash the input to [0,num_buckets)
-    if mask_zero = True,0 or 0.0 will be set to 0,other value will be set in range[1,num_buckets)
-    """
+# 自定义dnese层含BN， dropout
+class CustomDense(Layer):
+    def __init__(self, units=32, activation='tanh', dropout_rate=0, use_bn=False, seed=1024, tag_name="dnn", **kwargs):
+        self.units = units
+        self.activation = activation
+        self.dropout_rate = dropout_rate
+        self.use_bn = use_bn
+        self.seed = seed
+        self.tag_name = tag_name
 
-    def __init__(self, num_buckets, mask_zero=False, **kwargs):
-        self.num_buckets = num_buckets
-        self.mask_zero = mask_zero
-        super(HashLayer, self).__init__(**kwargs)
+        super(CustomDense, self).__init__(**kwargs)
 
+    # build方法一般定义Layer需要被训练的参数。
     def build(self, input_shape):
-        # Be sure to call this somewhere!
-        super(HashLayer, self).build(input_shape)
+        self.weight = self.add_weight(shape=(input_shape[-1], self.units),
+                                      initializer='random_normal',
+                                      trainable=True,
+                                      name='kernel_' + self.tag_name)
+        self.bias = self.add_weight(shape=(self.units,),
+                                    initializer='random_normal',
+                                    trainable=True,
+                                    name='bias_' + self.tag_name)
 
-    def call(self, x, mask=None, **kwargs):
-        zero = tf.as_string(tf.zeros([1], dtype='int32'))
-        num_buckets = self.num_buckets if not self.mask_zero else self.num_buckets - 1
-        hash_x = tf.strings.to_hash_bucket_fast(x, num_buckets, name=None)
-        if self.mask_zero:
-            mask = tf.cast(tf.not_equal(x, zero), dtype='int64')
-            hash_x = (hash_x + 1) * mask
+        if self.use_bn:
+            self.bn_layers = tf.keras.layers.BatchNormalization()
 
-        return hash_x
+        self.dropout_layers = tf.keras.layers.Dropout(self.dropout_rate)
+        self.activation_layers = tf.keras.layers.Activation(self.activation, name=self.activation + '_' + self.tag_name)
 
-    def get_config(self, ):
-        config = super(HashLayer, self).get_config()
-        config.update({'num_buckets': self.num_buckets, 'mask_zero': self.mask_zero, })
+        super(CustomDense, self).build(input_shape)  # 相当于设置self.built = True
+
+    # call方法一般定义正向传播运算逻辑，__call__方法调用了它。
+    def call(self, inputs, training=None, **kwargs):
+        fc = tf.matmul(inputs, self.weight) + self.bias
+        if self.use_bn:
+            fc = self.bn_layers(fc)
+        out_fc = self.activation_layers(fc)
+
+        return out_fc
+
+    # 如果要让自定义的Layer通过Functional API 组合成模型时可以序列化，需要自定义get_config方法，保存模型不写这部分会报错
+    def get_config(self):
+        config = super(CustomDense, self).get_config()
+        config.update({'units': self.units, 'activation': self.activation, 'use_bn': self.use_bn,
+                       'dropout_rate': self.dropout_rate, 'seed': self.seed, 'name': self.tag_name})
         return config
 
 
-class Add(tf.keras.layers.Layer):
-    def __init__(self, **kwargs):
-        super(Add, self).__init__(**kwargs)
-
-    def build(self, input_shape):
-        # Be sure to call this somewhere!
-        super(Add, self).build(input_shape)
-
-    def call(self, inputs, **kwargs):
-        if not isinstance(inputs, list):
-            return inputs
-        if len(inputs) == 1:
-            return inputs[0]
-        if len(inputs) == 0:
-            return tf.constant([[0.0]])
-        return tf.keras.layers.add(inputs)
-
-    # cos 相似度计算层
-
-
+# cos 相似度计算层
 class Similarity(Layer):
 
-    def __init__(self, gamma=20, axis=-1, type_sim='cos', neg=3, **kwargs):
+    def __init__(self, gamma=1, axis=-1, type_sim='cos', **kwargs):
         self.gamma = gamma
         self.axis = axis
         self.type_sim = type_sim
-        self.neg = neg
         super(Similarity, self).__init__(**kwargs)
 
     def build(self, input_shape):
@@ -372,34 +345,13 @@ class Similarity(Layer):
 
     def call(self, inputs, **kwargs):
         query, candidate = inputs
-        bs = tf.shape(query)[0]
-        tmp = candidate
-        # Negative Sampling
-        for i in range(self.neg):
-            rand = tf.random.uniform([], minval=0, maxval=bs + i, dtype=tf.dtypes.int32, ) % bs
-            candidate = tf.concat([candidate,
-                                   tf.slice(tmp, [rand, 0], [bs - rand, -1]),
-                                   tf.slice(tmp, [0, 0], [rand, -1])], 0
-                                  )
-        # 扩充至 candidate 一样的维度
-        query = tf.tile(query, [self.neg + 1, 1])
-
         if self.type_sim == "cos":
             query_norm = tf.norm(query, axis=self.axis)
             candidate_norm = tf.norm(candidate, axis=self.axis)
-
-        # cos_sim_raw = query * candidate / (||query|| * ||candidate||)
-        cos_sim_raw = tf.reduce_sum(tf.multiply(query, candidate), -1)
-        cos_sim_raw = tf.divide(cos_sim_raw, query_norm * candidate_norm + 1e-8)
-        cos_sim_raw = tf.clip_by_value(cos_sim_raw, -1, 1.0)
-        # 超参数 gamma 20 论文
-        cos_sim = tf.transpose(tf.reshape(tf.transpose(cos_sim_raw), [self.neg + 1, -1])) * self.gamma
-        # 转化为softmax概率矩阵
-        prob = tf.nn.softmax(cos_sim)
-        # 只取第一列，即正样本列概率。
-        logits = tf.slice(prob, [0, 0], [-1, 1])
-
-        return logits
+        cosine_score = tf.reduce_sum(tf.multiply(query, candidate), -1)
+        cosine_score = tf.divide(cosine_score, query_norm * candidate_norm + 1e-8)
+        cosine_score = tf.clip_by_value(cosine_score, -1, 1.0) * self.gamma
+        return tf.expand_dims(cosine_score, 1)
 
     def compute_output_shape(self, input_shape):
         return (None, 1)
@@ -410,17 +362,57 @@ class Similarity(Layer):
         return base_config.uptate(config)
 
 
+# 自定损失函数，加权交叉熵损失
+class WeightedBinaryCrossEntropy(tf.keras.losses.Loss):
+    """
+    Args:
+      pos_weight: Scalar to affect the positive labels of the loss function.
+      weight: Scalar to affect the entirety of the loss function.
+      from_logits: Whether to compute loss from logits or the probability.
+      reduction: Type of tf.keras.losses.Reduction to apply to loss.
+      name: Name of the loss function.
+    """
+
+    def __init__(self, pos_weight=1.2, from_logits=False,
+                 reduction=tf.keras.losses.Reduction.AUTO,
+                 name='weighted_binary_crossentropy'):
+        super().__init__(reduction=reduction, name=name)
+        self.pos_weight = pos_weight
+        self.from_logits = from_logits
+
+    def call(self, y_true, y_pred):
+        y_true = tf.cast(y_true, tf.float32)
+        ce = tf.losses.binary_crossentropy(
+            y_true, y_pred, from_logits=self.from_logits)[:, None]
+        ce = ce * (1 - y_true) + self.pos_weight * ce * (y_true)
+        #         ce =tf.nn.weighted_cross_entropy_with_logits(
+        #             y_true, y_pred, self.pos_weight, name=None
+        #         )
+
+        return ce
+
+    def get_config(self, ):
+        config = {'pos_weight': self.pos_weight, 'from_logits': self.from_logits, 'name': self.name}
+        base_config = super(WeightedBinaryCrossEntropy, self).get_config()
+        return base_config.uptate(config)
+
+
 # 定义model输入特征
 def build_input_features(features_columns, prefix=''):
     input_features = OrderedDict()
-
     for feat_col in features_columns:
         if isinstance(feat_col, DenseFeat):
-            input_features[feat_col.name] = Input([feat_col.dim], name=feat_col.name)
+            if feat_col.pre_embed is None:
+                input_features[feat_col.name] = Input([1], name=feat_col.name)
+            else:
+                input_features[feat_col.name] = Input([feat_col.dim], name=feat_col.name)
         elif isinstance(feat_col, SparseFeat):
-            input_features[feat_col.name] = Input([1], name=feat_col.name, dtype=feat_col.dtype)
+            if feat_col.dtype == 'string':
+                input_features[feat_col.name] = Input([None], name=feat_col.name, dtype=feat_col.dtype)
+            else:
+                input_features[feat_col.name] = Input([1], name=feat_col.name, dtype=feat_col.dtype)
         elif isinstance(feat_col, VarLenSparseFeat):
-            input_features[feat_col.name] = Input([None], name=feat_col.name, dtype=feat_col.dtype)
+            input_features[feat_col.name] = Input([None], name=feat_col.name, dtype='string')
             if feat_col.weight_name is not None:
                 input_features[feat_col.weight_name] = Input([None], name=feat_col.weight_name, dtype='float32')
         else:
@@ -429,76 +421,52 @@ def build_input_features(features_columns, prefix=''):
     return input_features
 
 
-# 构造 自定义embedding层 matrix
-def build_embedding_matrix(features_columns, linear_dim=None):
+# 构造自定义embedding层matrix
+def build_embedding_matrix(features_columns):
     embedding_matrix = {}
     for feat_col in features_columns:
         if isinstance(feat_col, SparseFeat) or isinstance(feat_col, VarLenSparseFeat):
-            vocab_name = feat_col.share_embed if feat_col.share_embed else feat_col.name
-            vocab_size = feat_col.voc_size + 2
-            embed_dim = feat_col.embed_dim if linear_dim is None else 1
-            name_tag = '' if linear_dim is None else '_linear'
-            if vocab_name not in embedding_matrix:
-                embedding_matrix[vocab_name] = tf.Variable(
-                    initial_value=tf.random.truncated_normal(shape=(vocab_size, embed_dim), mean=0.0,
-                                                             stddev=0.001, dtype=tf.float32), trainable=True,
-                    name=vocab_name + '_embed' + name_tag)
+            if feat_col.dtype == 'string':
+                print('build embedding matrix:{0}'.format(feat_col))
+                vocab_name = feat_col.share_embed if feat_col.share_embed else feat_col.name
+                vocab_size = feat_col.voc_size
+                embed_dim = feat_col.embed_dim
+                if vocab_name not in embedding_matrix:
+                    embedding_matrix[vocab_name] = tf.Variable(
+                        initial_value=tf.random.truncated_normal(shape=(vocab_size, embed_dim), mean=0.0,
+                                                                 stddev=0.0, dtype=tf.float32), trainable=True,
+                        name=vocab_name + '_embed')
     return embedding_matrix
 
 
-# 构造 自定义embedding层
-def build_embedding_dict(features_columns):
+# 构造自定义 embedding层
+def build_embedding_dict(features_columns, embedding_matrix):
     embedding_dict = {}
-    embedding_matrix = build_embedding_matrix(features_columns)
-
     for feat_col in features_columns:
+
         if isinstance(feat_col, SparseFeat):
-            vocab_name = feat_col.share_embed if feat_col.share_embed else feat_col.name
-            embedding_dict[feat_col.name] = EmbeddingLookup(embedding=embedding_matrix[vocab_name],
-                                                            name='emb_lookup_' + feat_col.name)
+            print(
+                'EncodeMultiEmb name:{0},dtype:{1}'.format('EncodeMultiEmb_' + feat_col.name, feat_col.dtype))
+            if feat_col.dtype == 'string':
+                vocab_name = feat_col.share_embed if feat_col.share_embed else feat_col.name
+                embedding_dict[feat_col.name] = EncodeMultiEmbedding(embedding=embedding_matrix[vocab_name],
+                                                                     name='EncodeMultiEmb_' + feat_col.name)
         elif isinstance(feat_col, VarLenSparseFeat):
+            print(
+                'EncodeMultiEmb name:{0},dtype:{1},weight_name:{2}'.format(feat_col.name, feat_col.dtype,
+                                                                           feat_col.weight_name))
             vocab_name = feat_col.share_embed if feat_col.share_embed else feat_col.name
-            if feat_col.combiner is not None:
-                if feat_col.weight_name is not None:
-                    embedding_dict[feat_col.name] = EmbeddingLookupSparse(embedding=embedding_matrix[vocab_name],
-                                                                          combiner=feat_col.combiner, has_weight=True,
-                                                                          name='emb_lookup_sparse_' + feat_col.name)
-                else:
-                    embedding_dict[feat_col.name] = EmbeddingLookupSparse(embedding=embedding_matrix[vocab_name],
-                                                                          combiner=feat_col.combiner,
-                                                                          name='emb_lookup_sparse_' + feat_col.name)
+            if feat_col.weight_name is not None:
+                print('embedding:{0}'.format(embedding_matrix))
+                print('vocab_name:{0}'.format(vocab_name))
+                embedding_dict[feat_col.name] = EncodeMultiEmbedding(embedding=embedding_matrix[vocab_name],
+                                                                     has_weight=True,
+                                                                     name='EncodeMultiEmb_' + feat_col.name)
             else:
-                embedding_dict[feat_col.name] = EmbeddingLookup(embedding=embedding_matrix[vocab_name],
-                                                                name='emb_lookup_' + feat_col.name)
-
-    return embedding_dict
-
-
-# 构造 自定义embedding层
-def build_linear_embedding_dict(features_columns):
-    embedding_dict = {}
-    embedding_matrix = build_embedding_matrix(features_columns, linear_dim=1)
-    name_tag = '_linear'
-
-    for feat_col in features_columns:
-        if isinstance(feat_col, SparseFeat):
-            vocab_name = feat_col.share_embed if feat_col.share_embed else feat_col.name
-            embedding_dict[feat_col.name] = EmbeddingLookup(embedding=embedding_matrix[vocab_name],
-                                                            name='emb_lookup_' + feat_col.name + name_tag)
-        elif isinstance(feat_col, VarLenSparseFeat):
-            vocab_name = feat_col.share_embed if feat_col.share_embed else feat_col.name
-            if feat_col.combiner is not None:
-                if feat_col.weight_name is not None:
-                    embedding_dict[feat_col.name] = EmbeddingLookupSparse(embedding=embedding_matrix[vocab_name],
-                                                                          combiner=feat_col.combiner, has_weight=True,
-                                                                          name='emb_lookup_sparse_' + feat_col.name + name_tag)
-                else:
-                    embedding_dict[feat_col.name] = EmbeddingLookupSparse(embedding=embedding_matrix[vocab_name],
-                                                                          combiner=feat_col.combiner,
-                                                                          name='emb_lookup_sparse_' + feat_col.name + name_tag)
-            else:
-                embedding_dict[feat_col.name] = EmbeddingLookup(embedding=embedding_matrix[vocab_name],
-                                                                name='emb_lookup_' + feat_col.name + name_tag)
+                print('embedding:{0}'.format(embedding_matrix[vocab_name]))
+                print('vocab_name:{0}'.format(vocab_name))
+                embedding_dict[feat_col.name] = EncodeMultiEmbedding(embedding=embedding_matrix[vocab_name],
+                                                                     name='EncodeMultiEmb_' + feat_col.name)
 
     return embedding_dict
 
@@ -509,38 +477,32 @@ def input_from_feature_columns(features, features_columns, embedding_dict):
     dense_value_list = []
 
     for feat_col in features_columns:
+        if isinstance(feat_col, SparseFeat) or isinstance(feat_col, VarLenSparseFeat):
+            print('sparse or var')
+            if feat_col.dtype == 'string':
+                vocab_name = feat_col.share_embed if feat_col.share_embed else feat_col.name
+                keys = DICT_CATEGORICAL[vocab_name]
+                _input_sparse = SparseVocabLayer(keys)(features[feat_col.name])
+
         if isinstance(feat_col, SparseFeat):
-            _input = features[feat_col.name]
+            print('sparse')
             if feat_col.dtype == 'string':
-                if feat_col.hash_size is None:
-                    vocab_name = feat_col.share_embed if feat_col.share_embed else feat_col.name
-                    keys = DICT_CATEGORICAL[vocab_name]
-                    _input = VocabLayer(keys)(_input)
-                else:
-                    _input = HashLayer(num_buckets=feat_col.hash_size, mask_zero=False)(_input)
-
-            embed = embedding_dict[feat_col.name](_input)
-            sparse_embedding_list.append(embed)
-        elif isinstance(feat_col, VarLenSparseFeat):
-            _input = features[feat_col.name]
-            if feat_col.dtype == 'string':
-                if feat_col.hash_size is None:
-                    vocab_name = feat_col.share_embed if feat_col.share_embed else feat_col.name
-                    keys = DICT_CATEGORICAL[vocab_name]
-                    _input = VocabLayer(keys, mask_value='0', name='Voc_' + feat_col.name)(_input)
-                else:
-                    _input = HashLayer(num_buckets=feat_col.hash_size, mask_zero=True)(_input)
-            if feat_col.combiner is not None:
-                input_sparse = DenseToSparseTensor(mask_value=0)(_input)
-                if feat_col.weight_name is not None:
-                    weight_sparse = DenseToSparseTensor()(features[feat_col.weight_name])
-                    embed = embedding_dict[feat_col.name]([input_sparse, weight_sparse])
-                else:
-                    embed = embedding_dict[feat_col.name](input_sparse)
+                print('string')
+                _embed = embedding_dict[feat_col.name](_input_sparse)
             else:
-                embed = embedding_dict[feat_col.name](_input)
+                print('not string')
+                _embed = Embedding(feat_col.voc_size + 1, feat_col.embed_dim,
+                                   embeddings_regularizer=tf.keras.regularizers.l2(0.5), name='Embed_' + feat_col.name)(
+                    features[feat_col.name])
+            sparse_embedding_list.append(_embed)
+        elif isinstance(feat_col, VarLenSparseFeat):
+            if feat_col.weight_name is not None:
+                _weight_sparse = Dense2SparseTensor()(features[feat_col.weight_name])
+                _embed = embedding_dict[feat_col.name]([_input_sparse, _weight_sparse])
 
-            sparse_embedding_list.append(embed)
+            else:
+                _embed = embedding_dict[feat_col.name](_input_sparse)
+            sparse_embedding_list.append(_embed)
 
         elif isinstance(feat_col, DenseFeat):
             dense_value_list.append(features[feat_col.name])
@@ -571,26 +533,6 @@ def combined_dnn_input(sparse_embedding_list, dense_value_list):
         raise Exception("dnn_feature_columns can not be empty list")
 
 
-def get_linear_logit(sparse_embedding_list, dense_value_list):
-    if len(sparse_embedding_list) > 0 and len(dense_value_list) > 0:
-        sparse_linear_layer = Add()(sparse_embedding_list)
-        sparse_linear_layer = Flatten()(sparse_linear_layer)
-        dense_linear = concat_func(dense_value_list)
-        dense_linear_layer = Dense(1)(dense_linear)
-        linear_logit = Add()([dense_linear_layer, sparse_linear_layer])
-        return linear_logit
-    elif len(sparse_embedding_list) > 0:
-        sparse_linear_layer = Add()(sparse_embedding_list)
-        sparse_linear_layer = Flatten()(sparse_linear_layer)
-        return sparse_linear_layer
-    elif len(dense_value_list) > 0:
-        dense_linear = concat_func(dense_value_list)
-        dense_linear_layer = Dense(1)(dense_linear)
-        return dense_linear_layer
-    else:
-        raise Exception("linear_feature_columns can not be empty list")
-
-
 def DSSM(
         user_feature_columns,
         item_feature_columns,
@@ -599,13 +541,30 @@ def DSSM(
         user_dnn_dropout=(0, 0, 0),
         item_dnn_dropout=(0, 0, 0),
         out_dnn_activation='tanh',
-        gamma=20,
+        gamma=1.2,
         dnn_use_bn=False,
         seed=1024,
         metric='cos'):
+    """
+    Instantiates the Deep Structured Semantic Model architecture.
+    Args:
+        user_feature_columns: A list containing user's features used by the model.
+        item_feature_columns: A list containing item's features used by the model.
+        user_dnn_hidden_units: tuple,tuple of positive integer , the layer number and units in each layer of user tower
+        item_dnn_hidden_units: tuple,tuple of positive integer, the layer number and units in each layer of item tower
+        out_dnn_activation: Activation function to use in deep net
+        dnn_use_bn: bool. Whether use BatchNormalization before activation or not in deep net
+        user_dnn_dropout: tuple of float in [0,1), the probability we will drop out a given user tower DNN coordinate.
+        item_dnn_dropout: tuple of float in [0,1), the probability we will drop out a given item tower DNN coordinate.
+        seed: integer ,to use as random seed.
+        gamma: A useful hyperparameter for Similarity layer
+        metric: str, "cos" for  cosine
+    return: A TF Keras model instance.
+    """
     features_columns = user_feature_columns + item_feature_columns
     # 构建 embedding_dict
-    embedding_dict = build_embedding_dict(features_columns)
+    embedding_matrix = build_embedding_matrix(features_columns)
+    embedding_dict = build_embedding_dict(features_columns, embedding_matrix)
 
     # user 特征 处理
     user_features = build_input_features(user_feature_columns)
@@ -624,24 +583,27 @@ def DSSM(
     # user tower
     for i in range(len(user_dnn_hidden_units)):
         if i == len(user_dnn_hidden_units) - 1:
-            user_dnn_out = Dense(units=user_dnn_hidden_units[i], activation=out_dnn_activation, name='user_embed_out')(
+            user_dnn_out = CustomDense(units=user_dnn_hidden_units[i], dropout_rate=user_dnn_dropout[i],
+                                       use_bn=dnn_use_bn, activation=out_dnn_activation, name='user_embed_out')(
                 user_dnn_input)
             break
-        user_dnn_input = Dense(units=user_dnn_hidden_units[i], activation=out_dnn_activation,
-                               name='dnn_user_' + str(i))(user_dnn_input)
+        user_dnn_input = CustomDense(units=user_dnn_hidden_units[i], dropout_rate=user_dnn_dropout[i],
+                                     use_bn=dnn_use_bn, activation='relu', name='dnn_user_' + str(i))(user_dnn_input)
 
     # item tower
     for i in range(len(item_dnn_hidden_units)):
         if i == len(item_dnn_hidden_units) - 1:
-            item_dnn_out = Dense(units=item_dnn_hidden_units[i], activation=out_dnn_activation, name='item_embed_out')(
+            item_dnn_out = CustomDense(units=item_dnn_hidden_units[i], dropout_rate=item_dnn_dropout[i],
+                                       use_bn=dnn_use_bn, activation=out_dnn_activation, name='item_embed_out')(
                 item_dnn_input)
             break
-        item_dnn_input = Dense(units=item_dnn_hidden_units[i], activation=out_dnn_activation,
-                               name='dnn_item_' + str(i))(item_dnn_input)
+        item_dnn_input = CustomDense(units=item_dnn_hidden_units[i], dropout_rate=item_dnn_dropout[i],
+                                     use_bn=dnn_use_bn, activation='relu', name='dnn_item_' + str(i))(item_dnn_input)
 
-    score = Similarity(type_sim=metric, gamma=gamma, name='dssm_out')([user_dnn_out, item_dnn_out])
-
-    output = score
+    score = Similarity(type_sim=metric, gamma=gamma)([user_dnn_out, item_dnn_out])
+    output = tf.keras.layers.Activation("sigmoid", name="dssm_out")(score)
+    #    score = Multiply()([user_dnn_out, item_dnn_out])
+    #    output = Dense(1, activation="sigmoid",name="dssm_out")(score)
 
     model = Model(inputs=user_inputs_list + item_inputs_list, outputs=output)
     model.__setattr__("user_input", user_inputs_list)
@@ -666,9 +628,10 @@ model = DSSM(
     metric='cos')
 
 model.compile(optimizer='adagrad',
-              loss={"dssm_out": "binary_crossentropy",
+              loss={"dssm_out": WeightedBinaryCrossEntropy(),
                     },
-              loss_weights=[1.0, ]
+              loss_weights=[1.0, ],
+              metrics={"dssm_out": [tf.keras.metrics.AUC(name='auc')]}
               )
 
 log_dir = './logs/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -684,20 +647,22 @@ tbCallBack = TensorBoard(log_dir=log_dir,  # log 目录
 
 #
 #
-total_train_sample = 5
-total_test_sample = 5
+total_train_sample = 10
+total_test_sample = 10
 train_steps_per_epoch = np.floor(total_train_sample / batch_size).astype(np.int32)
 test_steps_per_epoch = np.ceil(total_test_sample / val_batch_size).astype(np.int32)
 history_loss = model.fit(dataset, epochs=1,
                          steps_per_epoch=train_steps_per_epoch,
                          validation_data=dataset_val, validation_steps=test_steps_per_epoch,
                          verbose=1, callbacks=[tbCallBack])
+model_save_path = os.path.join('./', "dssm/")
+
 # 用户塔 item塔定义
-# user_embedding_model = Model(inputs=model.user_input, outputs=model.user_embedding)
-# item_embedding_model = Model(inputs=model.item_input, outputs=model.item_embedding)
-# # 保存
-# tf.keras.models.save_model(user_embedding_model, "/Recall/DSSM/models/dssmUser/001/")
-# tf.keras.models.save_model(item_embedding_model, "/Recall/DSSM/models/dssmItem/001/")
+user_embedding_model = Model(inputs=model.user_input, outputs=model.user_embedding)
+item_embedding_model = Model(inputs=model.item_input, outputs=model.item_embedding)
+# 保存
+tf.keras.models.save_model(user_embedding_model, model_save_path + "/dssmUser/001/")
+tf.keras.models.save_model(item_embedding_model, model_save_path + "/dssmItem/001/")
 #
 # user_query = {'all_topic_fav_7': np.array([['294', '88', '60', '1']]),
 #               'all_topic_fav_7_weight': np.array([[0.0897, 0.2464, 0.0928, 0.5711, ]]),
