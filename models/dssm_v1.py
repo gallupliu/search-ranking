@@ -9,7 +9,7 @@ import tensorflow.keras.backend as K
 from tensorflow.keras import layers
 from tensorflow.keras.models import Model
 from tensorflow.keras.callbacks import TensorBoard
-
+import pandas as pd
 embedding_dim = 32
 
 # "label": [0, 1, 0, 1, 1, 0, 1, 1, 0, 0],
@@ -200,7 +200,7 @@ for feat_col in feature_columns:
 
 pad_shapes = (pad_shapes, (tf.TensorShape([])))
 pad_values = (pad_values, (tf.constant(0, dtype=tf.int32)))
-
+tmp_data= pd.read_csv('./hys_df_test.csv',sep='\t')
 filenames = tf.data.Dataset.list_files([
     './hys_df_test.csv'
 ])
@@ -674,8 +674,8 @@ model_save_path = os.path.join('./', "dssm/")
 user_embedding_model = Model(inputs=model.user_input, outputs=model.user_embedding)
 item_embedding_model = Model(inputs=model.item_input, outputs=model.item_embedding)
 # 保存
-tf.keras.models.save_model(user_embedding_model, model_save_path + "/dssmUser/001/")
-tf.keras.models.save_model(item_embedding_model, model_save_path + "/dssmItem/001/")
+tf.keras.models.save_model(user_embedding_model, model_save_path + "/user/1/")
+tf.keras.models.save_model(item_embedding_model, model_save_path + "/item/1/")
 #
 # user_query = {'all_topic_fav_7': np.array([['294', '88', '60', '1']]),
 #               'all_topic_fav_7_weight': np.array([[0.0897, 0.2464, 0.0928, 0.5711, ]]),

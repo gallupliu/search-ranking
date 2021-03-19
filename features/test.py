@@ -130,16 +130,29 @@ test_df.drop("newcol").coalesce(1).write.format("com.databricks.spark.csv").opti
     "raw.csv")
 print('convert')
 
-df = spark.createDataFrame([("a", None, None,'0.1',5,0.1),("a", "code2", "name2",'1.0',10,0.9),
-                            ("a", "code1", None,None,11,0.1), ("a", "code2", "name2",'-0.1',0,0.6)], ["id", "code", "name","rate","price","uv_rate"])
+df = spark.createDataFrame([("a", None, None, '0.1', 5, 0.1), ("a", "code2", "name2", '1.0', 10, 0.9),
+                            ("a", "code1", None, None, 11, 0.1), ("a", "code2", "name2", '-0.1', 0, 0.6)],
+                           ["id", "code", "name", "rate", "price", "uv_rate"])
 
 df.show()
-df = df.withColumn("rate",df["rate"].cast(DoubleType()).alias("rate"))
+count_feature_columns = ["rate", "price", "uv_rate"]
+df = df.withColumn("count_feature", pyf.to_str(pyf.struct([df[x] for i,x in enumerate(count_feature_columns)])))
+# df = df.withColumn("count_feature",
+#                    pyf.to_json(pyf.struct([df[x].alias(str(i)) for i, x in enumerate(count_feature_columns)])))
+#
+#
+# def remove(column):
+#     return column.replace('{', '').replace('}', '')
+#
+#
+# removeUDf = udf(remove, StringType())
+# df = df.withColumn('count_feature',removeUDf("count_feature"))
+
+df.select("count_feature").show()
+df = df.withColumn("rate", df["rate"].cast(DoubleType()).alias("rate"))
 df.show()
 df.printSchema()
-df.groupby("id").agg(pyf.collect_set("code"),pyf.collect_list("name")).show()
-
-
+df.groupby("id").agg(pyf.collect_set("code"), pyf.collect_list("name")).show()
 
 # cart_df = cart_df.withColumn('date',F.date_format(cart_df['arrival_date'],'yyyy-MM-dd HH:mm:ss'))
 # cart_df = cart_df.withColumn('new_date', when(cart_df['cart_time'].isNull(), F.date_format('1900-01-01 00:00:00','yyyy-MM-dd HH:mm:ss')).otherwise(cart_df['cart_time']))

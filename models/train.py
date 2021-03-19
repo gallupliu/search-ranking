@@ -121,7 +121,7 @@ hsy_data = {
 }
 
 hsy_df = pd.DataFrame(hsy_data)
-print(hsy_df)
+print(hsy_df.head(10))
 hsy_df.to_csv('./hys_df_test.csv', index=False, sep='\t')
 
 ids = []
