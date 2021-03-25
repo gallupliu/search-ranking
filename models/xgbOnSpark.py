@@ -9,7 +9,7 @@ from pyspark.ml.feature import  StringIndexer, VectorAssembler
 os.environ['JAVA_HOME']="/Library/Java/JavaVirtualMachines/jdk1.8.0_261.jdk/Contents/Home"
 os.environ['PYSPARK_SUBMIT_ARGS'] = '--jars /Users/gallup/study/search/xgboost-on-pyspark/xgboost_on_pyspark/dependences/xgboost4j-0.90.jar,' \
                                     '/Users/gallup/study/search/xgboost-on-pyspark/xgboost_on_pyspark/dependences/xgboost4j-spark-0.90.jar pyspark-shell'
-
+models_path ='../data'
 if __name__=="__main__":
 
     spark = SparkSession.builder \
@@ -34,6 +34,11 @@ if __name__=="__main__":
     pipeline_model_fit = pipeline_model.fit(train_df)
     score_df = pipeline_model_fit.transform(test_df)
     score_df.show()
+    # save
+    pipeline_model_fit.write().overwrite().save(models_path + "/xgb_model.model")
+
+    # load
+    # model2 = PipelineModel.load(models_path + "/xgb_model.model"
 
 
 
