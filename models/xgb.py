@@ -13,6 +13,7 @@ from sklearn.model_selection import GridSearchCV
 from pyspark import SparkConf, SparkContext
 from sklearn.preprocessing import LabelEncoder
 import math
+
 print(pyspark.__version__)
 os.environ['JAVA_HOME'] = "/Library/Java/JavaVirtualMachines/jdk1.8.0_261.jdk/Contents/Home"
 import json
@@ -107,9 +108,13 @@ class XGBoostClassifier():
             del params['objective']
         self.params.update(params)
         return self
+
+
 def logloss(y_true, Y_pred):
     label2num = dict((name, i) for i, name in enumerate(sorted(set(y_true))))
-    return -1 * sum(math.log(y[label2num[label]]) if y[label2num[label]] > 0 else -np.inf for y, label in zip(Y_pred, y_true)) / len(Y_pred)
+    return -1 * sum(math.log(y[label2num[label]]) if y[label2num[label]] > 0 else -np.inf for y, label in
+                    zip(Y_pred, y_true)) / len(Y_pred)
+
 
 sc, spark = create_spark()
 
@@ -143,20 +148,26 @@ clf = XGBoostClassifier(
     num_class=2,
     nthread=4,
 )
+# parameters = {
+#     'num_boost_round': [100, 250, 500],
+#     'eta': [0.05, 0.1, 0.3],
+#     'max_depth': [6, 9, 12],
+#     'subsample': [0.9, 1.0],
+#     'colsample_bytree': [0.9, 1.0],
+# }
 parameters = {
-    'num_boost_round': [100, 250, 500],
-    'eta': [0.05, 0.1, 0.3],
-    'max_depth': [6, 9, 12],
-    'subsample': [0.9, 1.0],
-    'colsample_bytree': [0.9, 1.0],
+    # 'num_boost_round': [100, 250, 500],
+    # 'eta': [0.05, 0.1, 0.3],
+    # 'max_depth': [5,6],
+    # 'subsample': [0.9, 1.0],
+    # 'colsample_bytree': [0.9, 1.0],
+    'scale_pos_weight':[1,2]
 }
 clf = GridSearchCV(clf, parameters, n_jobs=1, cv=2)
 
 clf.fit(train_data, train_label.stack().values.tolist())
+print('best score:{} with param:{}'.format(clf.best_score_, clf.best_params_))
 best_parameters, score, _ = max(clf.grid_scores_, key=lambda x: x[1])
-print('score:', score)
-for param_name in sorted(best_parameters.keys()):
-    print("%s: %r" % (param_name, best_parameters[param_name]))
 print('predicted:', clf.predict([[1, 1]]))
 
 # xgboost模型参数
