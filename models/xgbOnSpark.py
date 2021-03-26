@@ -17,9 +17,9 @@ if __name__=="__main__":
         .appName('word_count_app1') \
         .master('local[*]') \
         .getOrCreate()
-
     df = spark.read.csv("../data/Iris.csv", header=True, inferSchema=True)
-
+    # df = spark.read.format("csv").option("header","true").option("delimiter",",").load("../data/Iris.csv")
+    df.show()
     train_df, test_df = df.randomSplit([0.8, 0.2])
     data_col = train_df.drop('IS_TARGET').columns
     assembler = VectorAssembler(inputCols=data_col, outputCol='features')
