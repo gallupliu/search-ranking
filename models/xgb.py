@@ -8,10 +8,11 @@ from pyspark.sql import SparkSession
 import xgboost as xgb
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GridSearchCV
 # 数据集并行化跑
 from pyspark import SparkConf, SparkContext
 from sklearn.preprocessing import LabelEncoder
-
+import math
 print(pyspark.__version__)
 os.environ['JAVA_HOME'] = "/Library/Java/JavaVirtualMachines/jdk1.8.0_261.jdk/Contents/Home"
 import json
@@ -69,6 +70,47 @@ def to_json(data):
     raise TypeError
 
 
+class XGBoostClassifier():
+    def __init__(self, num_boost_round=10, **params):
+        self.clf = None
+        self.num_boost_round = num_boost_round
+        self.params = params
+        self.params.update({'objective': 'multi:softprob'})
+
+    def fit(self, X, y, num_boost_round=None):
+        num_boost_round = num_boost_round or self.num_boost_round
+        self.label2num = {label: i for i, label in enumerate(sorted(set(y)))}
+        dtrain = xgb.DMatrix(X, label=[self.label2num[label] for label in y])
+        self.clf = xgb.train(params=self.params, dtrain=dtrain, num_boost_round=num_boost_round)
+
+    def predict(self, X):
+        num2label = {i: label for label, i in self.label2num.items()}
+        Y = self.predict_proba(X)
+        y = np.argmax(Y, axis=1)
+        return np.array([num2label[i] for i in y])
+
+    def predict_proba(self, X):
+        dtest = xgb.DMatrix(X)
+        return self.clf.predict(dtest)
+
+    def score(self, X, y):
+        Y = self.predict_proba(X)
+        return 1 / logloss(y, Y)
+
+    def get_params(self, deep=True):
+        return self.params
+
+    def set_params(self, **params):
+        if 'num_boost_round' in params:
+            self.num_boost_round = params.pop('num_boost_round')
+        if 'objective' in params:
+            del params['objective']
+        self.params.update(params)
+        return self
+def logloss(y_true, Y_pred):
+    label2num = dict((name, i) for i, name in enumerate(sorted(set(y_true))))
+    return -1 * sum(math.log(y[label2num[label]]) if y[label2num[label]] > 0 else -np.inf for y, label in zip(Y_pred, y_true)) / len(Y_pred)
+
 sc, spark = create_spark()
 
 df = spark.read.format("csv").option("header", "true").option("delimiter", ",").load(
@@ -96,6 +138,27 @@ for feat in features_col:
 dtrain = xgb.DMatrix(train_data, label=train_label)
 dtest = xgb.DMatrix(test_data)
 
+clf = XGBoostClassifier(
+    eval_metric='auc',
+    num_class=2,
+    nthread=4,
+)
+parameters = {
+    'num_boost_round': [100, 250, 500],
+    'eta': [0.05, 0.1, 0.3],
+    'max_depth': [6, 9, 12],
+    'subsample': [0.9, 1.0],
+    'colsample_bytree': [0.9, 1.0],
+}
+clf = GridSearchCV(clf, parameters, n_jobs=1, cv=2)
+
+clf.fit(train_data, train_label.stack().values.tolist())
+best_parameters, score, _ = max(clf.grid_scores_, key=lambda x: x[1])
+print('score:', score)
+for param_name in sorted(best_parameters.keys()):
+    print("%s: %r" % (param_name, best_parameters[param_name]))
+print('predicted:', clf.predict([[1, 1]]))
+
 # xgboost模型参数
 params = {'booster': 'gbtree',
           'objective': 'binary:logistic',
@@ -114,7 +177,7 @@ params = {'booster': 'gbtree',
 watchlist = [(dtrain, 'train')]
 
 bst = xgb.train(params, dtrain, num_boost_round=100, evals=watchlist)
-
+bst.get_score(importance_type='gain')
 # 预测
 ypred = bst.predict(dtest)
 
