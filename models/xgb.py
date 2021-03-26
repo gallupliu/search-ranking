@@ -70,21 +70,20 @@ def to_json(data):
 
 
 sc, spark = create_spark()
-# sqlContext = SQLContext(sc)
-# # df = sqlContext.read.csv("../data/iris.csv")
-# 读取csv文件
-# df_spark = spark.read.csv("./test.csv", header=True)
-df = spark.read.format("csv").option("header", "true").option("delimiter", ",").load("../data/iris.csv")
+
+df = spark.read.format("csv").option("header", "true").option("delimiter", ",").load(
+    "/Users/gallup/study/search/rank/RankService/feature/src/main/scala/com/example/feature/hour.csv")
 df.show()
-features_col = df.drop('IS_TARGET').columns
+features_col = ["temp", "atemp", "hum", "casual", "cnt", "season", "yr", "mnth", "hr"]
+label_col = ["workingday"]
 df = df.toPandas()
-df, le_dict = encodeColumns(df, ['IS_TARGET'])
+df, le_dict = encodeColumns(df, label_col)
 train_df, test_df = train_test_split(df, test_size=0.2)
 
 train_data = pd.DataFrame(train_df, columns=features_col)
-train_label = pd.DataFrame(train_df, columns=['IS_TARGET'])
+train_label = pd.DataFrame(train_df, columns=label_col)
 test_data = pd.DataFrame(test_df, columns=features_col)
-test_label = pd.DataFrame(test_df, columns=['IS_TARGET'])
+test_label = pd.DataFrame(test_df, columns=label_col)
 
 # label encoder dict
 with open(f'''./label_encoder_dict.json''', 'w') as fp:
@@ -101,7 +100,8 @@ dtest = xgb.DMatrix(test_data)
 params = {'booster': 'gbtree',
           'objective': 'binary:logistic',
           'eval_metric': 'auc',
-          'max_depth': 4,
+          'max_depth': 6,
+          'num_leaves': 63,
           'lambda': 10,
           'subsample': 0.75,
           'colsample_bytree': 0.75,
