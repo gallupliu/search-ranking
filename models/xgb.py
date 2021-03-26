@@ -167,7 +167,6 @@ clf = GridSearchCV(clf, parameters, n_jobs=1, cv=2)
 
 clf.fit(train_data, train_label.stack().values.tolist())
 print('best score:{} with param:{}'.format(clf.best_score_, clf.best_params_))
-best_parameters, score, _ = max(clf.grid_scores_, key=lambda x: x[1])
 print('predicted:', clf.predict([[1, 1]]))
 
 # xgboost模型参数
