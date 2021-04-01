@@ -13,12 +13,12 @@ from sklearn.model_selection import GridSearchCV
 from pyspark import SparkConf, SparkContext
 from sklearn.preprocessing import LabelEncoder
 import math
-
+import warnings
 print(pyspark.__version__)
 os.environ['JAVA_HOME'] = "/Library/Java/JavaVirtualMachines/jdk1.8.0_261.jdk/Contents/Home"
 import json
 
-
+warnings.filterwarnings('ignore')
 def create_spark():
     spark_conf = SparkConf().setAppName("test").set("spark.ui.showConsoleProgress", "false") \
         .set("spark.driver.maxResultSize", "4g") \
@@ -71,52 +71,6 @@ def to_json(data):
     raise TypeError
 
 
-class XGBoostClassifier():
-    def __init__(self, num_boost_round=10, **params):
-        self.clf = None
-        self.num_boost_round = num_boost_round
-        self.params = params
-        # self.params.update({'objective': 'multi:softprob'})
-
-
-    def fit(self, X, y, num_boost_round=None):
-        num_boost_round = num_boost_round or self.num_boost_round
-        self.label2num = {label: i for i, label in enumerate(sorted(set(y)))}
-        dtrain = xgb.DMatrix(X, label=[self.label2num[label] for label in y])
-        self.clf = xgb.train(params=self.params, dtrain=dtrain, num_boost_round=num_boost_round)
-
-    def predict(self, X):
-        num2label = {i: label for label, i in self.label2num.items()}
-        Y = self.predict_proba(X)
-        y = np.argmax(Y, axis=1)
-        return np.array([num2label[i] for i in y])
-
-    def predict_proba(self, X):
-        dtest = xgb.DMatrix(X)
-        return self.clf.predict(dtest)
-
-    def score(self, X, y):
-        Y = self.predict_proba(X)
-        return 1 / logloss(y, Y)
-
-    def get_params(self, deep=True):
-        return self.params
-
-    def set_params(self, **params):
-        if 'num_boost_round' in params:
-            self.num_boost_round = params.pop('num_boost_round')
-        if 'objective' in params:
-            del params['objective']
-        self.params.update(params)
-        return self
-
-
-def logloss(y_true, Y_pred):
-    label2num = dict((name, i) for i, name in enumerate(sorted(set(y_true))))
-    return -1 * sum(math.log(y[label2num[label]]) if y[label2num[label]] > 0 else -np.inf for y, label in
-                    zip(Y_pred, y_true)) / len(Y_pred)
-
-
 sc, spark = create_spark()
 
 df = spark.read.format("csv").option("header", "true").option("delimiter", ",").load(
@@ -144,50 +98,88 @@ for feat in features_col:
 dtrain = xgb.DMatrix(train_data, label=train_label)
 dtest = xgb.DMatrix(test_data)
 
-clf = XGBoostClassifier(
-    eval_metric='auc',
-    num_class=2,
-    nthread=4,
-)
-# parameters = {
-#     'num_boost_round': [100, 250, 500],
-#     'eta': [0.05, 0.1, 0.3],
-#     'max_depth': [6, 9, 12],
-#     'subsample': [0.9, 1.0],
-#     'colsample_bytree': [0.9, 1.0],
-# }
-parameters = {
-    # 'num_boost_round': [100, 250, 500],
-    # 'eta': [0.05, 0.1, 0.3],
-    # 'max_depth': [5,6],
-    # 'subsample': [0.9, 1.0],
-    # 'colsample_bytree': [0.9, 1.0],
-    'scale_pos_weight': [1, 2]
-}
-clf = GridSearchCV(clf, parameters,  cv=2)
+
+#
+# train = pd.read_csv("../input/train.csv")
+# test = pd.read_csv("../input/test.csv")
+#
+#
+# train = train.drop('QuoteNumber', axis=1)
+# test = test.drop('QuoteNumber', axis=1)
+#
+# # Lets play with some dates
+# train['Date'] = pd.to_datetime(pd.Series(train['Original_Quote_Date']))
+# train = train.drop('Original_Quote_Date', axis=1)
+#
+# test['Date'] = pd.to_datetime(pd.Series(test['Original_Quote_Date']))
+# test = test.drop('Original_Quote_Date', axis=1)
+#
+# train['Year'] = train['Date'].apply(lambda x: int(str(x)[:4]))
+# train['Month'] = train['Date'].apply(lambda x: int(str(x)[5:7]))
+# train['weekday'] = train['Date'].dt.dayofweek
+#
+# test['Year'] = test['Date'].apply(lambda x: int(str(x)[:4]))
+# test['Month'] = test['Date'].apply(lambda x: int(str(x)[5:7]))
+# test['weekday'] = test['Date'].dt.dayofweek
+#
+# train = train.drop('Date', axis=1)
+# test = test.drop('Date', axis=1)
+#
+# #fill -999 to NAs
+# train = train.fillna(-999)
+# test = test.fillna(-999)
+#
+# features = list(train.columns[1:])  #la colonne 0 est le quote_conversionflag
+# print(features)
+#
+#
+# for f in train.columns:
+#     if train[f].dtype=='object':
+#         print(f)
+#         lbl = preprocessing.LabelEncoder()
+#         lbl.fit(list(train[f].values) + list(test[f].values))
+#         train[f] = lbl.transform(list(train[f].values))
+#         test[f] = lbl.transform(list(test[f].values))
+
+xgb_model = xgb.XGBClassifier()
+
+#brute force scan for all parameters, here are the tricks
+#usually max_depth is 6,7,8
+#learning rate is around 0.05, but small changes may make big diff
+#tuning min_child_weight subsample colsample_bytree can have
+#much fun of fighting against overfit
+#n_estimators is how many round of boosting
+#finally, ensemble xgboost with multiple seeds may reduce variance
+parameters = {'nthread':[4], #when use hyperthread, xgboost may become slower
+              'objective':['binary:logistic'],
+              'learning_rate': [0.05], #so called `eta` value
+              'max_depth': [6],
+              'min_child_weight': [11],
+              'scale_pos_weight': [1, 2],
+              'subsample': [0.8],
+              'colsample_bytree': [0.7],
+              'n_estimators': [5], #number of trees, change it to 1000 for better results
+              'missing':[-999],
+              'seed': [1337]}
+
+
+clf = GridSearchCV(xgb_model, parameters, n_jobs=5,
+                   cv=5,
+                   scoring='roc_auc',
+                   verbose=2, refit=True)
 
 clf.fit(train_data, train_label.stack().values.tolist())
-print('best score:{} with param:{}'.format(clf.best_score_, clf.best_params_))
 
-# xgboost模型参数
-# params = {'booster': 'gbtree',
-#           'objective': 'binary:logistic',
-#           'eval_metric': 'auc',
-#           'max_depth': 6,
-#           'num_leaves': 63,
-#           'lambda': 10,
-#           'subsample': 0.75,
-#           'colsample_bytree': 0.75,
-#           'min_child_weight': 2,
-#           'eta': 0.025,
-#           'seed': 0,
-#           'nthread': 8,
-#           'silent': 1}
+#trust your CV!
+means = clf.cv_results_['mean_test_score']
+params = clf.cv_results_['params']
+print('Raw AUC score:', means)
+print('best score:{} with param:{}'.format(clf.best_score_, clf.best_params_))
 
 params = {
     'booster': 'gbtree',
     'objective': 'binary:logistic',
-    'metric': 'auc',
+    # 'metric': 'auc',
     'eval_metric': 'auc',
     'max_depth': 5,
     'min_child_weight': 350,
@@ -205,10 +197,9 @@ bst.get_score(importance_type='gain')
 ypred = bst.predict(dtest)
 
 # 保存模型和加载模型
-bst.save_model('./xgb2.model')
-bst2 = xgb.core.Booster(model_file='./xgb2.model')
+bst.save_model('./xgb1.model')
+bst2 = xgb.core.Booster(model_file='./xgb1.model')
 
 s = sc.parallelize(test_data, 5)
 
-# 并行预测
-# s.map(lambda x: bst2.predict(xgb.DMatrix(np.array(x).reshape((1, -1))))).collect()
+test_probs = clf.predict_proba(test_data)[:,1]
