@@ -99,48 +99,6 @@ dtrain = xgb.DMatrix(train_data, label=train_label)
 dtest = xgb.DMatrix(test_data)
 
 
-#
-# train = pd.read_csv("../input/train.csv")
-# test = pd.read_csv("../input/test.csv")
-#
-#
-# train = train.drop('QuoteNumber', axis=1)
-# test = test.drop('QuoteNumber', axis=1)
-#
-# # Lets play with some dates
-# train['Date'] = pd.to_datetime(pd.Series(train['Original_Quote_Date']))
-# train = train.drop('Original_Quote_Date', axis=1)
-#
-# test['Date'] = pd.to_datetime(pd.Series(test['Original_Quote_Date']))
-# test = test.drop('Original_Quote_Date', axis=1)
-#
-# train['Year'] = train['Date'].apply(lambda x: int(str(x)[:4]))
-# train['Month'] = train['Date'].apply(lambda x: int(str(x)[5:7]))
-# train['weekday'] = train['Date'].dt.dayofweek
-#
-# test['Year'] = test['Date'].apply(lambda x: int(str(x)[:4]))
-# test['Month'] = test['Date'].apply(lambda x: int(str(x)[5:7]))
-# test['weekday'] = test['Date'].dt.dayofweek
-#
-# train = train.drop('Date', axis=1)
-# test = test.drop('Date', axis=1)
-#
-# #fill -999 to NAs
-# train = train.fillna(-999)
-# test = test.fillna(-999)
-#
-# features = list(train.columns[1:])  #la colonne 0 est le quote_conversionflag
-# print(features)
-#
-#
-# for f in train.columns:
-#     if train[f].dtype=='object':
-#         print(f)
-#         lbl = preprocessing.LabelEncoder()
-#         lbl.fit(list(train[f].values) + list(test[f].values))
-#         train[f] = lbl.transform(list(train[f].values))
-#         test[f] = lbl.transform(list(test[f].values))
-
 xgb_model = xgb.XGBClassifier()
 
 #brute force scan for all parameters, here are the tricks

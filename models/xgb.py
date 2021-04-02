@@ -8,7 +8,9 @@ from pyspark.sql import SparkSession
 import xgboost as xgb
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import RandomizedSearchCV, GridSearchCV
+from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import StratifiedKFold
 # 数据集并行化跑
 from pyspark import SparkConf, SparkContext
 from sklearn.preprocessing import LabelEncoder
@@ -71,52 +73,6 @@ def to_json(data):
     raise TypeError
 
 
-class XGBoostClassifier():
-    def __init__(self, num_boost_round=10, **params):
-        self.clf = None
-        self.num_boost_round = num_boost_round
-        self.params = params
-        # self.params.update({'objective': 'multi:softprob'})
-
-
-    def fit(self, X, y, num_boost_round=None):
-        num_boost_round = num_boost_round or self.num_boost_round
-        self.label2num = {label: i for i, label in enumerate(sorted(set(y)))}
-        dtrain = xgb.DMatrix(X, label=[self.label2num[label] for label in y])
-        self.clf = xgb.train(params=self.params, dtrain=dtrain, num_boost_round=num_boost_round)
-
-    def predict(self, X):
-        num2label = {i: label for label, i in self.label2num.items()}
-        Y = self.predict_proba(X)
-        y = np.argmax(Y, axis=1)
-        return np.array([num2label[i] for i in y])
-
-    def predict_proba(self, X):
-        dtest = xgb.DMatrix(X)
-        return self.clf.predict(dtest)
-
-    def score(self, X, y):
-        Y = self.predict_proba(X)
-        return 1 / logloss(y, Y)
-
-    def get_params(self, deep=True):
-        return self.params
-
-    def set_params(self, **params):
-        if 'num_boost_round' in params:
-            self.num_boost_round = params.pop('num_boost_round')
-        if 'objective' in params:
-            del params['objective']
-        self.params.update(params)
-        return self
-
-
-def logloss(y_true, Y_pred):
-    label2num = dict((name, i) for i, name in enumerate(sorted(set(y_true))))
-    return -1 * sum(math.log(y[label2num[label]]) if y[label2num[label]] > 0 else -np.inf for y, label in
-                    zip(Y_pred, y_true)) / len(Y_pred)
-
-
 sc, spark = create_spark()
 
 df = spark.read.format("csv").option("header", "true").option("delimiter", ",").load(
@@ -144,30 +100,39 @@ for feat in features_col:
 dtrain = xgb.DMatrix(train_data, label=train_label)
 dtest = xgb.DMatrix(test_data)
 
-clf = XGBoostClassifier(
-    eval_metric='auc',
-    num_class=2,
-    nthread=4,
-)
-# parameters = {
-#     'num_boost_round': [100, 250, 500],
-#     'eta': [0.05, 0.1, 0.3],
-#     'max_depth': [6, 9, 12],
-#     'subsample': [0.9, 1.0],
-#     'colsample_bytree': [0.9, 1.0],
-# }
-parameters = {
-    # 'num_boost_round': [100, 250, 500],
-    # 'eta': [0.05, 0.1, 0.3],
-    # 'max_depth': [5,6],
-    # 'subsample': [0.9, 1.0],
-    # 'colsample_bytree': [0.9, 1.0],
-    'scale_pos_weight': [1, 2]
+# A parameter grid for XGBoost
+params = {
+    'min_child_weight': [1, 5, 10],
+    'gamma': [0.5, 1, 1.5, 2, 5],
+    'subsample': [0.6, 0.8, 1.0],
+    'colsample_bytree': [0.6, 0.8, 1.0],
+    'max_depth': [3, 4, 5]
 }
-clf = GridSearchCV(clf, parameters,  cv=2)
 
-clf.fit(train_data, train_label.stack().values.tolist())
-print('best score:{} with param:{}'.format(clf.best_score_, clf.best_params_))
+clf = xgb.XGBClassifier(learning_rate=0.02, n_estimators=600, objective='binary:logistic', nthread=4)
+
+folds = 3
+param_comb = 5
+
+skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=1001)
+
+random_search = RandomizedSearchCV(clf, param_distributions=params, n_iter=param_comb, scoring='roc_auc', n_jobs=4,
+                                   cv=skf.split(train_data, train_label), verbose=3, random_state=1001)
+random_search.fit(train_data, train_label)
+print('\n All results:')
+print(random_search.cv_results_)
+print('\n Best estimator:')
+print(random_search.best_estimator_)
+print('\n Best normalized gini score for %d-fold search with %d parameter combinations:' % (folds, param_comb))
+print(random_search.best_score_ * 2 - 1)
+print('\n Best hyperparameters:')
+print(random_search.best_params_)
+results = pd.DataFrame(random_search.cv_results_)
+results.to_csv('xgb-random-grid-search-results-01.csv', index=False)
+
+
+# clf.fit(train_data, train_label.stack().values.tolist())
+# print('best score:{} with param:{}'.format(clf.best_score_, clf.best_params_))
 
 # xgboost模型参数
 # params = {'booster': 'gbtree',
@@ -196,19 +161,19 @@ params = {
     'colsample_bytree': 1,
     'scale_pos_weight': 3,
 }
-
-watchlist = [(dtrain, 'train')]
-
-bst = xgb.train(params, dtrain, num_boost_round=100, evals=watchlist)
-bst.get_score(importance_type='gain')
-# 预测
-ypred = bst.predict(dtest)
-
-# 保存模型和加载模型
-bst.save_model('./xgb2.model')
-bst2 = xgb.core.Booster(model_file='./xgb2.model')
-
-s = sc.parallelize(test_data, 5)
+#
+# watchlist = [(dtrain, 'train')]
+#
+# bst = xgb.train(params, dtrain, num_round=100, evals=watchlist)
+# bst.get_score(importance_type='gain')
+# # 预测
+# ypred = bst.predict(dtest)
+#
+# # 保存模型和加载模型
+# bst.save_model('./xgb2.model')
+# bst2 = xgb.core.Booster(model_file='./xgb2.model')
+#
+# s = sc.parallelize(test_data, 5)
 
 # 并行预测
 # s.map(lambda x: bst2.predict(xgb.DMatrix(np.array(x).reshape((1, -1))))).collect()
