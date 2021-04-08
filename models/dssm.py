@@ -1,6 +1,7 @@
 from collections import namedtuple, OrderedDict
 import datetime
 import json
+import math
 import numpy as np
 import os
 import tensorflow as tf
@@ -41,7 +42,7 @@ feature_columns = [SparseFeat(name="topic_id", voc_size=700, share_embed=None, e
                    ]
 
 # 用户特征及贴子特征
-user_feature_columns_name = ["follow_topic_id",'all_topic_fav_7', 'client_type', 'client_embed',
+user_feature_columns_name = ["follow_topic_id", 'all_topic_fav_7', 'client_type', 'client_embed',
                              'keyword_embed']
 item_feature_columns_name = ["topic_id", "post_id", "post_type", 'item_embed']
 user_feature_columns = [col for col in feature_columns if col.name in user_feature_columns_name]
@@ -627,6 +628,14 @@ model = DSSM(
     seed=1024,
     metric='cos')
 
+initial_learning_rate = 0.01
+
+
+def lr_exp_decay(epoch, lr):
+    k = 0.1
+    return initial_learning_rate * math.exp(-k * epoch)
+
+
 model.compile(optimizer='adagrad',
               loss={"dssm_out": WeightedBinaryCrossEntropy(),
                     },
@@ -654,7 +663,8 @@ test_steps_per_epoch = np.ceil(total_test_sample / val_batch_size).astype(np.int
 history_loss = model.fit(dataset, epochs=1,
                          steps_per_epoch=train_steps_per_epoch,
                          validation_data=dataset_val, validation_steps=test_steps_per_epoch,
-                         verbose=1, callbacks=[tbCallBack])
+                         verbose=1,
+                         callbacks=[tbCallBack, tf.keras.callbacks.LearningRateScheduler(lr_exp_decay, verbose=1)])
 model_save_path = os.path.join('./', "dssm/")
 
 # 用户塔 item塔定义
