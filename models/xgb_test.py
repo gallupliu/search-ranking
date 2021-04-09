@@ -8,17 +8,20 @@ from pyspark.sql import SparkSession
 import xgboost as xgb
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 # 数据集并行化跑
 from pyspark import SparkConf, SparkContext
 from sklearn.preprocessing import LabelEncoder
 import math
 import warnings
+
 print(pyspark.__version__)
 os.environ['JAVA_HOME'] = "/Library/Java/JavaVirtualMachines/jdk1.8.0_261.jdk/Contents/Home"
 import json
 
 warnings.filterwarnings('ignore')
+
+
 def create_spark():
     spark_conf = SparkConf().setAppName("test").set("spark.ui.showConsoleProgress", "false") \
         .set("spark.driver.maxResultSize", "4g") \
@@ -98,41 +101,50 @@ for feat in features_col:
 dtrain = xgb.DMatrix(train_data, label=train_label)
 dtest = xgb.DMatrix(test_data)
 
+parameters = {
+    'max_depth': [5, 10, 15, 20, 25],
+    # 'learning_rate': [0.01, 0.02, 0.05, 0.1, 0.15],
+    # 'n_estimators': [50, 100, 200, 300, 500],
+    # 'min_child_weight': [0, 2, 5, 10, 20],
+    # 'max_delta_step': [0, 0.2, 0.6, 1, 2],
+    # 'subsample': [0.6, 0.7, 0.8, 0.85, 0.95],
+    # 'colsample_bytree': [0.5, 0.6, 0.7, 0.8, 0.9],
+    # 'reg_alpha': [0, 0.25, 0.5, 0.75, 1],
+    # 'reg_lambda': [0.2, 0.4, 0.6, 0.8, 1],
+    'scale_pos_weight': [1, 2]
+}
 
-xgb_model = xgb.XGBClassifier()
+xlf = xgb.XGBClassifier(max_depth=10,
+                        learning_rate=0.01,
+                        n_estimators=20,
+                        objective='binary:logistic',
+                        nthread=-1,
+                        gamma=0,
+                        min_child_weight=1,
+                        max_delta_step=0,
+                        subsample=0.85,
+                        colsample_bytree=0.7,
+                        colsample_bylevel=1,
+                        reg_alpha=0,
+                        reg_lambda=1,
+                        scale_pos_weight=1,
+                        seed=1440,
+                        eval_metric='auc',
+                        missing=None)
 
-#brute force scan for all parameters, here are the tricks
-#usually max_depth is 6,7,8
-#learning rate is around 0.05, but small changes may make big diff
-#tuning min_child_weight subsample colsample_bytree can have
-#much fun of fighting against overfit
-#n_estimators is how many round of boosting
-#finally, ensemble xgboost with multiple seeds may reduce variance
-parameters = {'nthread':[4], #when use hyperthread, xgboost may become slower
-              'objective':['binary:logistic'],
-              'learning_rate': [0.05], #so called `eta` value
-              'max_depth': [6],
-              'min_child_weight': [11],
-              'scale_pos_weight': [1, 2],
-              'subsample': [0.8],
-              'colsample_bytree': [0.7],
-              'n_estimators': [5], #number of trees, change it to 1000 for better results
-              'missing':[-999],
-              'seed': [1337]}
+# 有了gridsearch我们便不需要fit函数
+# gsearch = GridSearchCV(xlf, param_grid=parameters,  cv=3)
 
 
-clf = GridSearchCV(xgb_model, parameters, n_jobs=5,
-                   cv=5,
-                   scoring='roc_auc',
-                   verbose=2, refit=True)
-
-clf.fit(train_data, train_label.stack().values.tolist())
-
-#trust your CV!
-means = clf.cv_results_['mean_test_score']
-params = clf.cv_results_['params']
-print('Raw AUC score:', means)
-print('best score:{} with param:{}'.format(clf.best_score_, clf.best_params_))
+gsearch = RandomizedSearchCV(estimator=xlf, param_distributions=parameters,
+                               cv=5, n_iter=5, scoring='roc_auc', n_jobs=1, verbose=3, return_train_score=True,
+                               random_state=121)
+gsearch.fit(train_data, train_label)
+print("Best score: %0.3f" % gsearch.best_score_)
+print("Best parameters set:")
+best_parameters = gsearch.best_estimator_.get_params()
+for param_name in sorted(parameters.keys()):
+    print("\t%s: %r" % (param_name, best_parameters[param_name]))
 
 params = {
     'booster': 'gbtree',
@@ -155,9 +167,9 @@ bst.get_score(importance_type='gain')
 ypred = bst.predict(dtest)
 
 # 保存模型和加载模型
-bst.save_model('./xgb1.model')
-bst2 = xgb.core.Booster(model_file='./xgb1.model')
-
-s = sc.parallelize(test_data, 5)
-
-test_probs = clf.predict_proba(test_data)[:,1]
+# bst.save_model('./xgb1.model')
+# bst2 = xgb.core.Booster(model_file='./xgb1.model')
+#
+# s = sc.parallelize(test_data, 5)
+#
+# test_probs = clf.predict_proba(test_data)[:, 1]
