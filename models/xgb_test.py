@@ -133,12 +133,12 @@ xlf = xgb.XGBClassifier(max_depth=10,
                         missing=None)
 
 # 有了gridsearch我们便不需要fit函数
-# gsearch = GridSearchCV(xlf, param_grid=parameters,  cv=3)
+gsearch = GridSearchCV(xlf, param_grid=parameters,  cv=3)
 
 
-gsearch = RandomizedSearchCV(estimator=xlf, param_distributions=parameters,
-                               cv=5, n_iter=5, scoring='roc_auc', n_jobs=1, verbose=3, return_train_score=True,
-                               random_state=121)
+# gsearch = RandomizedSearchCV(estimator=xlf, param_distributions=parameters,
+#                                cv=5, n_iter=5, scoring='roc_auc', n_jobs=1, verbose=3, return_train_score=True,
+#                                random_state=121)
 gsearch.fit(train_data, train_label)
 print("Best score: %0.3f" % gsearch.best_score_)
 print("Best parameters set:")
@@ -162,7 +162,13 @@ params = {
 watchlist = [(dtrain, 'train')]
 
 bst = xgb.train(params, dtrain, num_boost_round=100, evals=watchlist)
-bst.get_score(importance_type='gain')
+feature_important = bst.get_score(importance_type='gain')
+keys = list(feature_important.keys())
+values = list(feature_important.values())
+
+data = pd.DataFrame(data=values, index=keys, columns=["score"]).sort_values(by = "score", ascending=False)
+print(data)
+data.plot(kind='barh')
 # 预测
 ypred = bst.predict(dtest)
 

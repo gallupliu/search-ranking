@@ -26,6 +26,7 @@ from pyspark.ml.feature import SQLTransformer
 from pyspark.sql.types import ArrayType, DoubleType, FloatType
 from pyspark.ml.linalg import Vectors, DenseVector
 import ceja
+import jieba
 from sklearn.metrics import pairwise_distances
 from sklearn.metrics.pairwise import pairwise_kernels
 from sklearn.metrics.pairwise import cosine_similarity as cosine
@@ -48,7 +49,7 @@ class Feature(object):
                 json.dump(feature_json, fout)
             return feature_json
 
-    def add_vector(self, df, column, feature_json):
+    def add_vector_bychar(self, df, column, feature_json):
         def parse_vector_from_string(text):
             vecs = []
 
@@ -71,7 +72,35 @@ class Feature(object):
             return avg_vecs
 
         add_embedding = udf(parse_vector_from_string, ArrayType(DoubleType()))
-        df = df.withColumn(column + '_vector', add_embedding(column))
+        df = df.withColumn(column + '_charvec', add_embedding(column))
+        return df
+
+    def add_vector_byword(self, df, column, feature_json):
+        def segment(text):
+            vecs = []
+            if text is None:
+                return feature_json.get('奶')
+            word_list = [word for word in jieba.cut(text)]
+
+
+            if isinstance(word_list, list):
+                for word in word_list:
+                    pass
+
+            for word in word_list:
+                # print("x:{0} is in vocabulary".format(char))
+                res = feature_json.get(word)
+                if res is None:
+                    # print("x:{0} is not in vocabulary".format(char))
+                    res = feature_json.get('奶')
+
+                vecs.append(res)
+
+            avg_vecs = np.mean(np.array(vecs), axis=0).tolist()
+            return avg_vecs
+
+        add_embedding = udf(segment, ArrayType(DoubleType()))
+        df = df.withColumn(column + '_wordvec', add_embedding(column))
         return df
 
     def calculate_cos(self, df, user_column, item_column, prefix):
@@ -237,7 +266,7 @@ class Feature(object):
             v = DenseVector(v)
 
             new_array = list([str(int(x)) for x in v])
-            print(v,type(v))
+            print(v, type(v))
             print(' '.join(new_array))
             print(type(' '.join(new_array)))
             return ' '.join(new_array)
@@ -271,6 +300,7 @@ class Feature(object):
         num = 0
         total = len(cols)
         print("正在onehot特征化...")
+
         @udf(StringType())
         def toDense(v):
             print(v)
@@ -280,6 +310,7 @@ class Feature(object):
             new_array = list([str(int(x)) for x in v])
 
             return ' '.join(new_array)
+
         for c in cols:
             num += 1
             # print("{0}/{1} 正在onehot特征:{2}".format(num, total, c))
@@ -373,20 +404,20 @@ if __name__ == "__main__":
     sc, spark = CreateSparkContex()
     feature = Feature()
     data = [
-        ("jellyfish", "smellyfish", None, 0.8, 1, "[4,3]", [4, 3], ['牛奶', '奶制品'], "A","A"),
-        ("li", "lee", None, 0.5, 1, "[3]", [3], ['牛奶', '奶制品'], "A","A"),
-        ("luisa", "bruna", 100, 0.6, 2, None, None, ['牛奶', '奶制品'], "B","A"),
-        ("martha", "marhta", 0, 0.3, 3, "[2, 3, 4]", [], ['牛奶', '奶制品'], "C","A"),
-        ("口罩", "KN95口罩", 10, 0.9, 3, "[1, 2, 3, 4]", [1, 2, 3, 4], ['牛奶', '奶制品'], "D","E"),
-        ("北京", "北京市", 20, 0.8, 5, "[2]", [2], ['牛奶', '奶制品'], "D","E"),
-        ("纯牛奶", "牛奶", 50, 0.78, 4, "[1, 2, 3]", [1, 2, 3], ['牛奶', '奶制品'], "E","E"),
-        ("安慕希", "牛奶", 20, 0.8, 5, "[1, 2]", [1, 2], ['牛奶', '奶制品'], "E","E"),
-        ("奶", "牛", 50, 0.7, 6, "[1, 2, 3]", [1, 2, 3], ['牛奶', '奶制品'], "B","E"),
-        ("奶", None, None, 0.7, 6, "[1, 2, 3]", [1, 2, 3], None, "C","E"),
-        ("奶", None, 50, 0.7, None, "[1, 2, 3]", [1, 2, 3], None, "E","E"),
+        ("jellyfish", "smellyfish", None, 0.8, 1, "[4,3]", [4, 3], ['牛奶', '奶制品'], "A", "A"),
+        ("li", "lee", None, 0.5, 1, "[3]", [3], ['牛奶', '奶制品'], "A", "A"),
+        ("luisa", "bruna", 100, 0.6, 2, None, None, ['牛奶', '奶制品'], "B", "A"),
+        ("martha", "marhta", 0, 0.3, 3, "[2, 3, 4]", [], ['牛奶', '奶制品'], "C", "A"),
+        ("口罩", "KN95口罩", 10, 0.9, 3, "[1, 2, 3, 4]", [1, 2, 3, 4], ['牛奶', '奶制品'], "D", "E"),
+        ("北京", "北京市", 20, 0.8, 5, "[2]", [2], ['牛奶', '奶制品'], "D", "E"),
+        ("纯牛奶", "牛奶", 50, 0.78, 4, "[1, 2, 3]", [1, 2, 3], ['牛奶', '奶制品'], "E", "E"),
+        ("安慕希", "牛奶", 20, 0.8, 5, "[1, 2]", [1, 2], ['牛奶', '奶制品'], "E", "E"),
+        ("奶", "牛", 50, 0.7, 6, "[1, 2, 3]", [1, 2, 3], ['牛奶', '奶制品'], "B", "E"),
+        ("奶", None, None, 0.7, 6, "[1, 2, 3]", [1, 2, 3], None, "C", "E"),
+        ("奶", None, 50, 0.7, None, "[1, 2, 3]", [1, 2, 3], None, "E", "E"),
     ]
     df = spark.createDataFrame(data, ["word1", "word2", "price", "rate", "category_id", "tag_ids", "ids", "tag_texts",
-                                      "category","test"])
+                                      "category", "test"])
     df.show()
     df.printSchema()
     actual_df = df.withColumn("hamming_distance", ceja.hamming_distance(col("word1"), col("word2")))
@@ -411,15 +442,23 @@ if __name__ == "__main__":
     actual_df.show()
     word_json = feature.load_embedding('../data/char.json')
 
-    actual_df = feature.add_vector(actual_df, "word1", word_json)
+    actual_df = feature.add_vector_bychar(actual_df, "word1", word_json)
     actual_df.show()
 
-    actual_df = feature.add_vector(actual_df, "word2", word_json)
+    actual_df = feature.add_vector_bychar(actual_df, "word2", word_json)
     actual_df.show()
 
-    actual_df = feature.calculate_cos(actual_df, 'word1', 'word2', '_vector')
+    actual_df = feature.add_vector_byword(actual_df, "word1", word_json)
     actual_df.show()
 
+    actual_df = feature.add_vector_byword(actual_df, "word2", word_json)
+    actual_df.show()
+
+    actual_df = feature.calculate_cos(actual_df, 'word1', 'word2', '_charvec')
+    actual_df.show()
+
+    actual_df = feature.calculate_cos(actual_df, 'word1', 'word2', '_wordvec')
+    actual_df.show()
     numic_columns = ["price", "rate"]
     for column in numic_columns:
         df = df.withColumn(column, df[column].cast(FloatType()).alias(column))
@@ -449,7 +488,6 @@ if __name__ == "__main__":
 
     print([3] * 5)
 
-
     # multi_ids_columns = ["tag_ids", "ids"]
     #
     # for column in multi_ids_columns:
@@ -473,4 +511,4 @@ if __name__ == "__main__":
         "feature.csv")
 
     df = df.toPandas()
-    df.to_csv('test.csv',index=False)
+    df.to_csv('test.csv', index=False)
