@@ -173,9 +173,15 @@ data.plot(kind='barh')
 ypred = bst.predict(dtest)
 
 # 保存模型和加载模型
-# bst.save_model('./xgb1.model')
-# bst2 = xgb.core.Booster(model_file='./xgb1.model')
-#
+bst.save_model('./xgb1.model')
+bst2 = xgb.core.Booster(model_file='./xgb1.model')
+feature_important = bst2.get_score(importance_type='gain')
+keys = list(feature_important.keys())
+values = list(feature_important.values())
+
+data = pd.DataFrame(data=values, index=keys, columns=["score"]).sort_values(by = "score", ascending=False)
+print(data)
+data.plot(kind='barh')
 # s = sc.parallelize(test_data, 5)
 #
 # test_probs = clf.predict_proba(test_data)[:, 1]
