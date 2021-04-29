@@ -38,6 +38,7 @@ if __name__ == "__main__":
     df.select(*tmp).show()
     tfidf = TFIDF(df, 'title_list', './data/models/')
     tfidf_result = tfidf.train_model()
+    print('tfidf')
     tfidf_result.show()
 
     keywords_list_with_idf = list(zip(tfidf.cv_model.vocabulary, tfidf.idf_model.idf.toArray()))
@@ -60,6 +61,7 @@ if __name__ == "__main__":
 
     # 利用结果索引与”idf_keywords_values“合并知道词
     keywordsByTFIDF = tfidf_result.join(idf_keywords_values, ['index'])
+    print('keywordsByTFIDF')
     keywordsByTFIDF.show()
     # keywordsByTFIDF.write.insertInto("tfidf_keywords_values")
     keywordsByTFIDF.registerTempTable("tfidf_keywords_values")
@@ -67,13 +69,14 @@ if __name__ == "__main__":
     textrank_keywords_df = df.rdd.mapPartitions(textrank(seg_tool.stopwords_list)).toDF(
         ["query", "id", "keyword", "textrank"])
     textrank_keywords_df.registerTempTable("textrank_keywords_values")
-
+    print('textrank_keywords_df')
     textrank_keywords_df.show()
 
     # 加载IDF，保留关键词以及权重计算(TextRank * IDF)
     result = textrank_keywords_df.join(keywordsByTFIDF, ['query', 'id', 'keyword'])
     keywords_res = result.withColumn("weights", result.textrank * result.idf).select(
         ["query", "id", "keyword", "weights"])
+    print('textrank*idf')
     keywords_res.show()
 
     # 合并关键词权重到字典结果
@@ -82,7 +85,7 @@ if __name__ == "__main__":
         "select id,collect_list(keyword) keywords,collect_list(weights) weights from temptable group by id")
     # df= df.join(merge_keywords,['id']).select(*['query','id','title','keywords','weights'])
     df = df.join(merge_keywords, ['id'])
-
+    print('id')
     df.show()
 
 
