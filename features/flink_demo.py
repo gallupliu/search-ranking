@@ -58,3 +58,22 @@ remover = StopWordsRemoverStreamOp().setSelectedCol("text").linkFrom(segment)
 keywords = KeywordsExtractionStreamOp().setSelectedCol("text").setTopN(3).linkFrom(remover)
 keywords.print()
 StreamOperator.execute()
+
+
+data = np.array([
+    ["中国 平安 华为"]
+])
+
+df = pd.DataFrame({"tokens": data[:, 0]})
+inOp1 = dataframeToOperator(df, schemaStr='tokens string', op_type='batch')
+inOp2 = dataframeToOperator(df, schemaStr='tokens string', op_type='stream')
+train = Word2VecTrainBatchOp().setSelectedCol("tokens").setMinCount(1).setVectorSize(4).linkFrom(inOp1)
+predictBatch = Word2VecPredictBatchOp().setSelectedCol("tokens").linkFrom(train, inOp1)
+
+[model,predict] = collectToDataframes(train, predictBatch)
+print(model)
+print(predict)
+
+predictStream = Word2VecPredictStreamOp(train).setSelectedCol("tokens").linkFrom(inOp2)
+predictStream.print(refreshInterval=-1)
+StreamOperator.execute()
