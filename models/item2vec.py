@@ -87,7 +87,7 @@ if __name__ == '__main__':
     # df = load_data(char_file_path, 'chars')
     # char_df = id_data_process(df)
     # item2vec(char_df, size=32, window=3, save_path='../data/char')
-    char_file_path = './recall_user_item_act_test.csv'
+    char_file_path = '../recall_user_item_act_test.csv'
     df = load_data(char_file_path, 'click_seq')
     char_df = id_data_process(df)
     item2vec(char_df, size=32, window=3, save_path='../data/id')
