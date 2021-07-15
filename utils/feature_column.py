@@ -140,6 +140,7 @@ def input_from_feature_columns(features, features_columns, embedding_dict,DICT_C
     dense_value_list = []
 
     for feat_col in features_columns:
+        print("input from features feat_col:{}".format(feat_col))
         if isinstance(feat_col, SparseFeat):
             _input = features[feat_col.name]
             if feat_col.dtype == 'string':

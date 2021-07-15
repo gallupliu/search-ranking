@@ -200,7 +200,7 @@ for feat_col in feature_columns:
 
 pad_shapes = (pad_shapes, (tf.TensorShape([])))
 pad_values = (pad_values, (tf.constant(0, dtype=tf.int32)))
-tmp_data= pd.read_csv('./hys_df_test.csv',sep='\t')
+tmp_data= pd.read_csv('../hys_df_test.csv', sep='\t')
 filenames = tf.data.Dataset.list_files([
     './hys_df_test.csv'
 ])

@@ -1,11 +1,15 @@
+# -*- coding: utf-8 -*-
+# @Time    : 2021/7/10 上午8:18
+# @Author  : gallup
+# @File    : run_deepfm.py
 import os
 import datetime
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.callbacks import TensorBoard
-from utils.feature_column import get_item_embed
-from deepctr.models import DeepFM
-from deepctr.feature_column import SparseFeat, DenseFeat, VarLenSparseFeat
+from utils.feature_column import SparseFeat,DenseFeat,VarLenSparseFeat,get_item_embed
+from models.deepfm import DeepFM
+
 
 
 def _parse_function(example_proto):
@@ -16,7 +20,6 @@ def _parse_function(example_proto):
     for feat_col in feature_columns:
         print(parsed)
         if isinstance(feat_col, VarLenSparseFeat):
-            # 'sparsefeat', 'maxlen', 'combiner', 'length_name', 'weight_name', 'weight_norm'
             if feat_col.weight_name is not None:
                 kvpairs = tf.strings.split([parsed[feat_col.name]], ',').values[:feat_col.maxlen]
                 kvpairs = tf.strings.split(kvpairs, ':')
@@ -40,67 +43,72 @@ def _parse_function(example_proto):
             feature_dict[feat_col.name] = parsed[feat_col.name]
 
         elif isinstance(feat_col, DenseFeat):
-            # 'name', 'dimension', 'dtype', 'transform_fn'
-            if 'char' in feat_col.name or 'word' in feat_col.name:
-                print('feat_col.name:{0}'.format(parsed[feat_col.name.split('_')[0]]))
-                keys = tf.strings.split(parsed[feat_col.name.split('_')[0]], ' ')
-                print('keys:{0}'.format(keys))
-                emb = tf.nn.embedding_lookup(params=CHAR_EMBEDDING, ids=CHAR_ID2IDX.lookup(keys))
-                # emb = tf.reduce_mean(emb, axis=0) if feat_col.reduce_type == 'mean' else tf.reduce_sum(emb, axis=0)
-                emb = tf.reduce_mean(emb, axis=0)
-                feature_dict[feat_col.name] = emb
-            elif 'id' in feat_col.name:
+            if not feat_col.pre_embed:
+                feature_dict[feat_col.name] = parsed[feat_col.name]
+            elif feat_col.pre_embed == 'char':
+                if feat_col.reduce_type is not None:
+                    print('pre_embed:{0}'.format(feat_col.pre_embed))
+                    keys = tf.strings.split(parsed[feat_col.pre_embed], ' ')
+                    emb = tf.nn.embedding_lookup(params=CHAR_EMBEDDING, ids=CHAR_ID2IDX.lookup(keys))
+                    emb = tf.reduce_mean(emb, axis=0) if feat_col.reduce_type == 'mean' else tf.reduce_sum(emb, axis=0)
+                    feature_dict[feat_col.name] = emb
+                else:
+                    print(feat_col.pre_embed, parsed[feat_col.pre_embed])
+                    emb = tf.nn.embedding_lookup(params=CHAR_EMBEDDING,
+                                                 ids=CHAR_ID2IDX.lookup(parsed[feat_col.pre_embed]))
+                    feature_dict[feat_col.name] = emb
+            elif feat_col.reduce_type is not None:
                 keys = tf.strings.split(parsed[feat_col.pre_embed], ',')
                 emb = tf.nn.embedding_lookup(params=ITEM_EMBEDDING, ids=ITEM_ID2IDX.lookup(keys))
                 emb = tf.reduce_mean(emb, axis=0) if feat_col.reduce_type == 'mean' else tf.reduce_sum(emb, axis=0)
                 feature_dict[feat_col.name] = emb
             else:
-                feature_dict[feat_col.name] = parsed[feat_col.name]
-
+                emb = tf.nn.embedding_lookup(params=ITEM_EMBEDDING, ids=ITEM_ID2IDX.lookup(parsed[feat_col.pre_embed]))
+                feature_dict[feat_col.name] = emb
         else:
             raise Exception("unknown feature_columns....")
 
-    label = parsed['label']
+    label = parsed['act']
 
     return feature_dict, label
-
 
 if __name__ == "__main__":
     ########################################################################
     #################数据预处理##############
     ########################################################################
     # 获取char embedding及其查找关系
-    embedding_dim = 32
-    char_file_names = ['./data/char.json']
-    CHAR_ID2IDX, CHAR_EMBEDDING = get_item_embed(char_file_names, embedding_dim)
+    # embedding_dim = 32
+    # char_file_names = ['../data/char.json']
+    # CHAR_ID2IDX, CHAR_EMBEDDING = get_item_embed(char_file_names,embedding_dim)
 
     # 筛选实体标签categorical 用于定义映射关系
     DICT_CATEGORICAL = {"topic_id": [str(i) for i in range(0, 700)],
                         "keyword_id": [str(i) for i in range(0, 10)],
                         }
 
-    text_features = ['keyword', 'title', 'brand', 'tag']
-    numerical_features = ['volume']
-    category_features = ['type']
+    feature_columns = [
+        SparseFeat(name="topic_id", voc_size=700, hash_size=None, share_embed=None, embed_dim=8, dtype='int32'),
+        SparseFeat(name="keyword_id", voc_size=10, hash_size=None, share_embed=None, embed_dim=8, dtype='int32'),
+        SparseFeat(name='client_type', voc_size=2, hash_size=None, share_embed=None, embed_dim=8, dtype='int32'),
+        SparseFeat(name='post_type', voc_size=2, hash_size=None, share_embed=None, embed_dim=8, dtype='int32'),
+        VarLenSparseFeat(name="follow_topic_id", voc_size=700, hash_size=None, share_embed='topic_id', weight_name=None,
+                         combiner='sum', embed_dim=8, maxlen=20, dtype='int32'),
+        VarLenSparseFeat(name="all_topic_fav_7", voc_size=700, hash_size=None, share_embed='topic_id',
+                         weight_name='all_topic_fav_7_weight', combiner='sum', embed_dim=8, maxlen=5, dtype='int32'),
+    ]
 
-    text_columns = [DenseFeat(name=feat + '_char', dimension=embedding_dim, ) for
-                    feat in text_features]
-    numerical_columns = [DenseFeat(name=feat, dimension=1, ) for feat in
-                         numerical_features]
-    category_columns = [
-        SparseFeat(name='type', vocabulary_size=3, embedding_dim=4, dtype='int32') for feat in
-        category_features]
-    feature_columns = text_columns + numerical_columns + category_columns
-
-    # 线性侧特征及交叉侧特征
-    linear_feature_columns_name = numerical_features + category_features
-    fm_group_column_name = [col + '_char' for col in text_features] + category_features + numerical_features
+    # 线性侧特征及交叉侧特征buda
+    linear_feature_columns_name = ["all_topic_fav_7", "follow_topic_id", 'client_type', 'post_type', "topic_id",
+                                   "keyword_id"]
+    fm_group_column_name = ["topic_id", "follow_topic_id", "all_topic_fav_7", "keyword_id"]
 
     linear_feature_columns = [col for col in feature_columns if col.name in linear_feature_columns_name]
     fm_group_columns = [col for col in feature_columns if col.name in fm_group_column_name]
 
-    DEFAULT_VALUES = [[0], [''], [''], [''], [''], [0.0], [0]]
-    COL_NAME = ['label', 'keyword', 'title', 'brand', 'tag', 'volume', 'type']
+    DEFAULT_VALUES = [[0], [''], [0.0], [0.0], [0.0],
+                      [''], [''], [0.0]]
+    COL_NAME = ['act', 'client_id', 'client_type', 'post_type', 'topic_id', 'follow_topic_id', 'all_topic_fav_7',
+                'keyword_id']
 
     pad_shapes = {}
     pad_values = {}
@@ -119,28 +127,22 @@ if __name__ == "__main__":
             if feat_col.dtype == 'string':
                 pad_shapes[feat_col.name] = tf.TensorShape([])
                 pad_values[feat_col.name] = '0'
-            elif feat_col.dtype == 'int32':
-                pad_shapes[feat_col.name] = tf.TensorShape([])
-                pad_values[feat_col.name] = 0
             else:
                 pad_shapes[feat_col.name] = tf.TensorShape([])
                 pad_values[feat_col.name] = 0.0
         elif isinstance(feat_col, DenseFeat):
-                # pad_shapes[feat_col.name] = tf.TensorShape([])
-                # pad_values[feat_col.name] = 0.0
-            #id 或者字符字段都以xxx_id 或者_char _word结尾
-            if '_'  not in feat_col.name:
+            if not feat_col.pre_embed:
                 pad_shapes[feat_col.name] = tf.TensorShape([])
                 pad_values[feat_col.name] = 0.0
             else:
-                pad_shapes[feat_col.name] = tf.TensorShape([feat_col.dimension])
+                pad_shapes[feat_col.name] = tf.TensorShape([feat_col.dim])
                 pad_values[feat_col.name] = 0.0
 
     pad_shapes = (pad_shapes, (tf.TensorShape([])))
     pad_values = (pad_values, (tf.constant(0, dtype=tf.int32)))
 
     filenames = tf.data.Dataset.list_files([
-        './hys_df_test.csv',
+        './user_item_act_test.csv',
     ])
     dataset = filenames.flat_map(
         lambda filepath: tf.data.TextLineDataset(filepath).skip(1))
@@ -155,7 +157,7 @@ if __name__ == "__main__":
     dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
 
     # 验证集
-    filenames_val = tf.data.Dataset.list_files(['./hys_df_test.csv'])
+    filenames_val = tf.data.Dataset.list_files(['./user_item_act_test.csv'])
     dataset_val = filenames_val.flat_map(
         lambda filepath: tf.data.TextLineDataset(filepath).skip(1))
 
@@ -170,11 +172,9 @@ if __name__ == "__main__":
     #################模型训练##############
     ########################################################################
 
-    model = DeepFM(linear_feature_columns, fm_group_columns, DICT_CATEGORICAL, dnn_hidden_units=(128, 128),
-                   dnn_activation='relu',
+    model = DeepFM(linear_feature_columns, fm_group_columns, DICT_CATEGORICAL,dnn_hidden_units=(128, 128), dnn_activation='relu',
                    seed=1024, )
 
-    # model = DeepFM(feature_columns,dnn_feature_columns=feature_columns,fm_group=feature_columns,task='binary')
     model.compile(optimizer="adam", loss="binary_crossentropy", metrics=tf.keras.metrics.AUC(name='auc'))
 
     log_dir = './tensorboardshare/logs/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")

@@ -140,6 +140,7 @@ def _parse_function(example_proto):
                 if feat_col.reduce_type is not None:
                     print('pre_embed:{0}'.format(feat_col.pre_embed))
                     keys = tf.strings.split(parsed[feat_col.pre_embed], ' ')
+                    print('keys:{0}'.format(parsed[feat_col.pre_embed]))
                     emb = tf.nn.embedding_lookup(params=CHAR_EMBEDDING, ids=CHAR_ID2IDX.lookup(keys))
                     emb = tf.reduce_mean(emb, axis=0) if feat_col.reduce_type == 'mean' else tf.reduce_sum(emb, axis=0)
                     feature_dict[feat_col.name] = emb

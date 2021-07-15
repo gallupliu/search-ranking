@@ -4,6 +4,7 @@ import pandas as pd
 import multiprocessing
 import json
 from gensim.models import Word2Vec
+
 # from pyspark import SparkContext, SparkConf
 # from pyspark.sql import SparkSession
 
@@ -33,15 +34,18 @@ def clean_text(text):
 #         .load(files_path)
 #     return np.array(df.select(column).collect())
 
-def load_data(files_path,column):
-    df = pd.read_csv(files_path,sep='\t')
+def load_data(files_path, column):
+    df = pd.read_csv(files_path, sep='\t')
     return np.array(df[column])
+
 
 def id_data_process(df):
     ids = []
     for seqs in df:
-        if isinstance(seqs,str):
+        if isinstance(seqs, str):
             texts = seqs.split(',')
+        elif isinstance(seqs, list):
+            texts - seqs
         else:
             texts = clean_text(seqs.tolist()[0]).strip().split(' ')
         id = []
@@ -87,12 +91,11 @@ if __name__ == '__main__':
     # df = load_data(char_file_path, 'chars')
     # char_df = id_data_process(df)
     # item2vec(char_df, size=32, window=3, save_path='../data/char')
-    char_file_path = '../recall_user_item_act_test.csv'
-    df = load_data(char_file_path, 'click_seq')
-    char_df = id_data_process(df)
-    item2vec(char_df, size=32, window=3, save_path='../data/id')
-
-    # char_file_path = './movielens_sample.txt'
-    # df = load_data(char_file_path, 'title')
+    # char_file_path = '../recall_user_item_act_test.csv'
+    # df = load_data(char_file_path, 'click_seq')
     # char_df = id_data_process(df)
-    # item2vec(char_df, size=32, window=3, save_path='../data/char_en')
+    # item2vec(char_df, size=32, window=3, save_path='../data/id')
+
+    data = pd.read_csv('../hys_df_test.csv', sep='\t')
+    char_df = id_data_process(data.iloc[:, 1:5].values)
+    item2vec(char_df, size=32, window=3, save_path='../data/char')
