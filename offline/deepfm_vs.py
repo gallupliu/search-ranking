@@ -48,7 +48,7 @@ _CSV_COLUMNS = [
     'capital_gain', 'capital_loss', 'hours_per_week', 'native_country',
     'income_bracket'
 
-age,workclass,fnlwgt,education,education_num,marital_status,occupation,relationship,race,gender,capital_gain,capital_loss,hours_per_week,native_country
+# age,workclass,fnlwgt,education,education_num,marital_status,occupation,relationship,race,gender,capital_gain,capital_loss,hours_per_week,native_country
 ]
 
 

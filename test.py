@@ -1,81 +1,502 @@
-# import warnings
+# import six
+import os
+import pandas as pd
+# import numpy as np
+# import tensorflow_ranking as tfr
+# import tensorflow as tf
+# import os
+# os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 #
-# warnings.filterwarnings(action='ignore', category=UserWarning, module='gensim')  # 忽略警告
-# import sys
+# tf.compat.v1.enable_eager_execution()
+# tf.compat.v1.set_random_seed(1234)
+# tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.INFO)
 #
-# import gensim
+# _TRAIN_DATA_PATH = "data/train-1000-framenet-BERT-context-rel.tfrecords"
+# _TEST_DATA_PATH = "data/dev-framenet-BERT-context-rel.tfrecords"
+# _VOCAB_PATH = "data/vocab.txt"
+# _LIST_SIZE = 250
+# _LABEL_FEATURE = "relevance"
+# _PADDING_LABEL = -1
+# _LEARNING_RATE = 0.05
+# _BATCH_SIZE = 32
+# _HIDDEN_LAYER_DIMS = ["64", "32", "16"]
+# _DROPOUT_RATE = 0.8
+# _GROUP_SIZE = 5 # Pointwise scoring.
+# _MODEL_DIR = "models/model"
+# _NUM_TRAIN_STEPS = 15 * 1000
+# _CHECKPOINT_DIR = "chk_points"
+# _EMBEDDING_DIMENSION = 20
 #
-# model = gensim.models.Word2Vec.load('./data/model/Word2Vec/wiki.zh.text.model')
-# # 与足球最相似的
-# word = model.most_similar("足球")
-# for each in word:
-#     print(each[0], each[1])
+# def context_feature_columns():
 #
-# print('*' * 20)
+#     query_column = tf.feature_column.categorical_column_with_vocabulary_file(
+#     key="query_tokens",
+#     vocabulary_file=_VOCAB_PATH)
+#     query_embedding_column = tf.feature_column.embedding_column(
+#     query_column, _EMBEDDING_DIMENSION)
 #
-# word = model.most_similar(positive=['皇上', '国王'], negative=['皇后'])
-# for t in word:
-#     print(t[0], t[1])
+#     answ_column = tf.feature_column.categorical_column_with_vocabulary_file(
+#     key="answer_tokens",
+#     vocabulary_file=_VOCAB_PATH)
+#     answ_embedding_column = tf.feature_column.embedding_column(
+#     answ_column, _EMBEDDING_DIMENSION)
 #
-# print(model.doesnt_match('太后 妃子 贵人 贵妃 才人'.split(' ')))
-# print('*' * 20)
+#     qid = tf.feature_column.numeric_column(key="qid",dtype=tf.int64)
 #
-# print(model.similarity('书籍', '书本'))
-# print('*' * 20)
-# print(model.similarity('逛街', '书本'))
+#     overall_bert_encoding_column = tf.feature_column.numeric_column(key="overal_bert_context_encoding_out", shape=768)
 #
-# import pandas as pd
+#     context_features = {"query_tokens": query_embedding_column, "answer_tokens": answ_embedding_column, "qid": qid,
+#     "overal_bert_context_encoding_out": overall_bert_encoding_column}
 #
-# df1 = pd.DataFrame({'key1':['a','b','c','d'],'key2':['e','f','g','h'],'key3':['i','j','k','l']},index=['k','l','m','n',])
-# df2 = pd.DataFrame({'key1':['a','B','c','d','d'],'key2':['e','f','g','h','h'],'key4':['i','j','K','L','H']},index = ['p','q','u','v','z'])
-# print(df1)
-# print(df2)
-# # print(pd.merge(df1,df2,on='key1'))
-# # print(pd.merge(df1,df2,on='key2'))
-# # print(pd.merge(df1,df2,on=['key1','key2']))
-# # print('default')
-# # print(pd.merge(df1,df2,on=['key1','key2']))  #可以看到不加on参数，系统自动以个数最多的相同column为参考
-# # print('inner')
-# # print(pd.merge(df1,df2,on=['key1','key2'],how='inner'))
-# print('left')
-# print(pd.merge(df1,df2,on=['key1','key2'],how='left'))
-# print('right')
-# print(pd.merge(df1,df2,on=['key1','key2'],how='right'))
-# print('outer')
-# print(pd.merge(df1,df2,on=['key1','key2'],how='outer'))
-#   key1 key2 key3
-# k    a    e    i
-# l    b    f    j
-# m    c    g    k
-# n    d    h    l
-#   key1 key2 key4
-# p    a    e    i
-# q    B    f    j
-# u    c    g    K
-# v    d    H    L
-#   key1 key2_x key3 key2_y key4
-# 0    a      e    i      e    i
-# 1    c      g    k      g    K
-# 2    d      h    l      H    L
-#   key1_x key2 key3 key1_y key4
-# 0      a    e    i      a    i
-# 1      b    f    j      B    j
-# 2      c    g    k      c    K
-#   key1 key2 key3 key4
-# 0    a    e    i    i
-# 1    c    g    k    K
-#   key1 key2 key3 key4
-# 0    a    e    i    i
-# 1    c    g    k    K
+#     return context_features
+#
+# def example_feature_columns():
+#     """Returns the example feature columns."""
+#
+#     expl_column = tf.feature_column.categorical_column_with_vocabulary_file(
+#     key="expl_tokens",
+#     vocabulary_file=_VOCAB_PATH)
+#     expl_embedding_column = tf.feature_column.embedding_column(
+#     expl_column, _EMBEDDING_DIMENSION)
+#
+#     relevance = tf.feature_column.numeric_column(key="relevance",dtype=tf.int64,default_value=_PADDING_LABEL)
+#
+#     examples_features = {"expl_tokens": expl_embedding_column,"relevance": relevance}
+#
+#     for fea in range(1,402212):
+#         # id, value = fea.split(":")
+#         try :
+#             feat = tf.feature_column.numeric_column(key=str(fea), dtype=tf.int64,default_value=0)
+#             examples_features[""+str(fea)] = feat
+#         except :
+#             continue
+#     return examples_features
+#
+# def input_fn(path, num_epochs=None):
+#     context_feature_spec = tf.feature_column.make_parse_example_spec(
+#     context_feature_columns().values())
+#     label_column = tf.feature_column.numeric_column(
+#     _LABEL_FEATURE, dtype=tf.int64, default_value=_PADDING_LABEL)
+#
+#     example_feature_spec = tf.feature_column.make_parse_example_spec(
+#     list(example_feature_columns().values()) + [label_column])
+#     dataset = tfr.data.build_ranking_dataset(
+#     file_pattern=path,
+#     data_format=tfr.data.EIE,
+#     batch_size=_BATCH_SIZE,
+#     list_size=_LIST_SIZE,
+#     context_feature_spec=context_feature_spec,
+#     example_feature_spec=example_feature_spec,
+#     reader=tf.data.TFRecordDataset,
+#     shuffle=False,
+#     num_epochs=num_epochs)
+#     features = tf.data.make_one_shot_iterator(dataset).get_next()
+#     label = tf.squeeze(features.pop(_LABEL_FEATURE), axis=2)
+#     label = tf.cast(label, tf.float32)
+#
+#     return features, label
+#
+# #Tranform Input
+# def make_transform_fn():
+#     def _transform_fn(features, mode):
+#         """Defines transform_fn."""
+#         example_name = next(six.iterkeys(example_feature_columns()))
+#         input_size = tf.shape(input=features[example_name])[1]
+#         context_features, example_features = tfr.feature.encode_listwise_features(
+#         features=features,
+#         input_size=input_size,
+#         context_feature_columns=context_feature_columns(),
+#         example_feature_columns=example_feature_columns(),
+#         mode=mode,
+#         scope="transform_layer")
+#
+#         return context_features, example_features
+#     return _transform_fn
+#
+# # Feature Interactions using scoring_fn
+# def make_score_fn():
+#     """Returns a scoring function to build EstimatorSpec."""
+#
+#     def _score_fn(context_features, group_features, mode, params, config):
+#         """Defines the network to score a group of documents."""
+#         with tf.compat.v1.name_scope("input_layer"):
+#         context_input = [
+#         tf.compat.v1.layers.flatten(context_features[name])
+#         for name in sorted(context_feature_columns())
+#         ]
+#         group_input = [
+#         tf.compat.v1.layers.flatten(group_features[name])
+#         for name in sorted(example_feature_columns())
+#         ]
+#         input_layer = tf.concat(context_input + group_input, 1)
+#
+#         is_training = (mode == tf.estimator.ModeKeys.TRAIN)
+#         cur_layer = input_layer
+#         cur_layer = tf.compat.v1.layers.batch_normalization(
+#           cur_layer,
+#           training=is_training,
+#           momentum=0.99)
+#
+#         for i, layer_width in enumerate(int(d) for d in _HIDDEN_LAYER_DIMS):
+#           cur_layer = tf.compat.v1.layers.dense(cur_layer, units=layer_width)
+#           cur_layer = tf.compat.v1.layers.batch_normalization(
+#             cur_layer,
+#             training=is_training,
+#             momentum=0.99)
+#           cur_layer = tf.nn.relu(cur_layer)
+#           cur_layer = tf.compat.v1.layers.dropout(
+#               inputs=cur_layer, rate=_DROPOUT_RATE, training=is_training)
+#         logits = tf.compat.v1.layers.dense(cur_layer, units=_GROUP_SIZE)
+#         return logits
+#     return _score_fn
+#
+# # Losses, Metrics and Ranking Head
+# # Evaluation Metrics
+# def eval_metric_fns():
+#     metric_fns = {}
+#     metric_fns.update({
+#     "metric/ndcg@%d" % topn: tfr.metrics.make_ranking_metric_fn(
+#     tfr.metrics.RankingMetricKey.NDCG, topn=topn)
+#     for topn in [1, 3, 5, 10]
+#     })
+#
+#     return metric_fns
+#
+# _LOSS = tfr.losses.RankingLossKey.APPROX_NDCG_LOSS
+# loss_fn = tfr.losses.make_loss_fn(_LOSS)
+#
+# Ranking Head
+# optimizer = tf.compat.v1.train.AdagradOptimizer(
+# learning_rate=_LEARNING_RATE)
+#
+# def _train_op_fn(loss):
+#     """Defines train op used in ranking head."""
+#
+#     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+#     minimize_op = optimizer.minimize(
+#     loss=loss, global_step=tf.compat.v1.train.get_global_step())
+#     train_op = tf.group([update_ops, minimize_op])
+#     return train_op
+#
+# ranking_head = tfr.head.create_ranking_head(
+# loss_fn=loss_fn,
+# eval_metric_fns=eval_metric_fns(),
+# train_op_fn=_train_op_fn)
+#
+# # Putting It All Together in a Model Builder
+# model_fnc = tfr.model.make_groupwise_ranking_fn(
+# group_score_fn=make_score_fn(),
+# transform_fn=make_transform_fn(),
+# group_size=_GROUP_SIZE,
+# ranking_head=ranking_head)
+#
+# # Train and evaluate the ranker
+# def train_and_eval_fn():
+#     config_proto = tf.ConfigProto(device_count={'GPU': 3 },log_device_placement=False,
+#     allow_soft_placement=False)
+#
+#     config_proto.gpu_options.per_process_gpu_memory_fraction = 0.8
+#     config_proto.gpu_options.allow_growth = True
+#
+#     run_config = tf.estimator.RunConfig(save_checkpoints_steps=100,
+#     # model_dir=_MODEL_DIR,
+#     keep_checkpoint_max=5,
+#     keep_checkpoint_every_n_hours=5,
+#     session_config=config_proto,
+#     save_summary_steps=100,
+#     log_step_count_steps=100)
+#
+#     ranker = tf.estimator.Estimator(
+#     model_fn=model_fnc,
+#     model_dir=_MODEL_DIR,
+#     config=run_config)
+#
+#     train_input_fn = lambda: input_fn(_TRAIN_DATA_PATH)
+#     eval_input_fn = lambda: input_fn(_TEST_DATA_PATH, num_epochs=1)
+#
+#     train_spec = tf.estimator.TrainSpec(
+#     input_fn=train_input_fn, max_steps=_NUM_TRAIN_STEPS)
+#     eval_spec = tf.estimator.EvalSpec(
+#     name="eval",
+#     input_fn=eval_input_fn,
+#     throttle_secs=15)
+#     return (ranker, train_spec, eval_spec)
+#
+# if name== "main" :
+#     ranker, train_spec, eval_spec = train_and_eval_fn()
+#     tf.estimator.train_and_evaluate(ranker, train_spec, eval_spec)
+import tensorflow as tf
 
-from joblib import Memory
-from sklearn.datasets import load_svmlight_file
-mem = Memory("./mycache")
+from tensorflow.python.feature_column.feature_column import _LazyBuilder
 
-@mem.cache
-def get_data():
-    data = load_svmlight_file("/Users/gallup/study/ranking/tensorflow_ranking/examples/data/train.txt")
-    return data[0], data[1]
+def test_embedding():
+    # tf.set_random_seed(1)
+    # color_data = {'color': [['R', 'C'], ['G', 'A'], ['B', 'B'], ['A', 'A']]}  # 4行样本
+    # pets = {"pets": ['牛', '奶']}
+    pets = {'pets': [['牛', '奶'], ['液', '体'], ['安', '慕'], ['婴', '儿'], ['口', '味'],["爱",'情']]}
 
-X, y = get_data()
-print(X,y)
+    builder = _LazyBuilder(pets)
+
+
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    fc_path = os.path.join(dir_path, 'char.txt')
+
+    column = tf.feature_column.categorical_column_with_vocabulary_file(
+        key="pets",
+        vocabulary_file=fc_path,
+        num_oov_buckets=0)
+
+    # def truncate_fn():
+    #     return tf.slice(serialized_list, [0, 0], [batch_size, list_size])
+    #
+    # def pad_fn():
+    #     return tf.pad(
+    #         tensor=serialized_list,
+    #         paddings=[[0, 0], [0, list_size - cur_list_size]],
+    #         constant_values="")
+    #
+    # serialized_list = tf.cond(
+    #     pred=cur_list_size > list_size, true_fn=truncate_fn, false_fn=pad_fn)
+    #
+    color_column_tensor = column._get_sparse_tensors(builder)
+
+    color_embeding = tf.feature_column.embedding_column(column, 4, combiner='sum')
+    color_embeding_dense_tensor = tf.feature_column.input_layer(pets, [color_embeding])
+
+    with tf.Session() as session:
+        session.run(tf.global_variables_initializer())
+        session.run(tf.tables_initializer())
+        print(session.run([color_column_tensor.id_tensor]))
+        print('embeding' + '_' * 40)
+        print(session.run([color_embeding_dense_tensor]))
+
+test_embedding()
+
+def test_data():
+    hsy_data = {
+
+        "keyword": ["安 慕 希", "牛 奶", "牛", "奶 粉", "婴 儿 奶 粉", "液 态 奶", "牛 肉", "奶", "牛 肉 干", "牛 奶 口 味"],
+        "label": [0, 1, 0, 1, 1, 0, 1, 1, 0, 0]
+    }
+    hsy_df = pd.DataFrame(hsy_data)
+    print(hsy_df.head(10))
+    hsy_df.to_csv('./milk.csv', index=False, sep='\t')
+
+
+def test_vocab():
+    pets = {'pets': [['牛','奶'],['液','体'],['安','慕'],['婴','儿'],['口','味']]}
+    # pets = {"pets": ['牛','奶']}
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    fc_path = os.path.join(dir_path, 'char.txt')
+
+    column = tf.feature_column.categorical_column_with_vocabulary_file(
+        key="pets",
+        vocabulary_file=fc_path,
+        num_oov_buckets=0)
+
+    indicator = tf.feature_column.indicator_column(column)
+    tensor = tf.feature_column.input_layer(pets, [indicator])
+
+    with tf.Session() as session:
+        session.run(tf.global_variables_initializer())
+        session.run(tf.tables_initializer())
+        print(session.run([tensor]))
+        print(session.run([indicator]))
+
+import requests
+import tensorflow as tf
+import tensorflow_text as tf_text
+
+def input_fn():
+    # Create a lookup table for a vocabulary
+    _VOCAB = [
+        # Special tokens
+        b"[UNK]", b"[MASK]", b"[RANDOM]", b"[CLS]", b"[SEP]",
+        # Suffixes
+        b"##ack", b"##ama", b"##ger", b"##gers", b"##onge", b"##pants", b"##uare",
+        b"##vel", b"##ven", b"an", b"A", b"Bar", b"Hates", b"Mar", b"Ob",
+        b"Patrick", b"President", b"Sp", b"Sq", b"bob", b"box", b"has", b"highest",
+        b"is", b"office", b"the",
+    ]
+
+    _START_TOKEN = _VOCAB.index(b"[CLS]")
+    _END_TOKEN = _VOCAB.index(b"[SEP]")
+    _MASK_TOKEN = _VOCAB.index(b"[MASK]")
+    _RANDOM_TOKEN = _VOCAB.index(b"[RANDOM]")
+    _UNK_TOKEN = _VOCAB.index(b"[UNK]")
+    _MAX_SEQ_LEN = 8
+    _MAX_PREDICTIONS_PER_BATCH = 5
+
+    _VOCAB_SIZE = len(_VOCAB)
+
+    lookup_table = tf.lookup.StaticVocabularyTable(
+        tf.lookup.KeyValueTensorInitializer(
+            keys=_VOCAB,
+            key_dtype=tf.string,
+            values=tf.range(
+                tf.size(_VOCAB, out_type=tf.int64), dtype=tf.int64),
+            value_dtype=tf.int64),
+        num_oov_buckets=1
+    )
+
+
+    docs = tf.data.Dataset.from_tensor_slices([['an Patrick  Bar has box'], ['an Patrick  Bar has box box'], ["the a box"]])
+    tokenizer = tf_text.WhitespaceTokenizer()
+
+    #
+    # def truncate_fn():
+    #     return tf.slice(serialized_list, [0, 0], [batch_size, list_size])
+    #
+    # def pad_fn():
+    #     return tf.pad(
+    #         tensor=serialized_list,
+    #         paddings=[[0, 0], [0, list_size - cur_list_size]],
+    #         constant_values="")
+    #
+    # serialized_list = tf.cond(
+    #     pred=cur_list_size > list_size, true_fn=truncate_fn, false_fn=pad_fn)
+
+    batch_size = 2
+    list_size = 5
+
+    # rt = tf.RaggedTensor.from_row_splits(
+    #     values=[[1, 3], [0, 0], [1, 3], [5, 3], [3, 3], [1, 2]],
+    #     row_splits=[0, 3, 4, 6])
+    # print(rt)
+    # print("Shape: {}".format(rt.shape))
+    # print("Number of partitioned dimensions: {}".format(rt.ragged_rank))
+    # print("Flat values shape: {}".format(rt.flat_values.shape))
+    # print("Flat values:\n{}".format(rt.flat_values))
+
+    def _parse(x):
+        # tokens_list = tokenizer.tokenize(x)
+        rt = tokenizer.tokenize(x)
+        tokens_tensor = rt.to_tensor(default_value='', shape=[None, list_size])
+        print('tensorfor:{0}'.format(tokens_tensor))
+        # Encode tokens
+        # tokens_list = tf.ragg(lookup_table.lookup, tokens_tensor)
+        tokens_list = lookup_table.lookup(tokens_tensor)
+        print(tokens_list,type(tokens_list))
+
+        cur_list_size = tf.shape(input=tokens_list)[1]
+        print(cur_list_size)
+
+        # print(tokens_list.flat_values.shape)
+        # def truncate_fn():
+        #     return tf.slice(tokens_list, [0, 0], [batch_size, list_size])
+        #
+        # def pad_fn():
+        #     return tf.pad(
+        #         tensor=tokens_list,
+        #         paddings=[[0, 0], [0, list_size - cur_list_size]],
+        #         constant_values="")
+        #
+        # tokens_list = tf.cond(
+        #     pred=cur_list_size > list_size, true_fn=truncate_fn, false_fn=pad_fn)
+
+        return tokens_list
+
+    tokenized_docs = docs.map(lambda x: _parse(x))
+    iterator = iter(tokenized_docs)
+    print(next(iterator))
+    print(next(iterator))
+    print(next(iterator))
+
+# input_fn()
+
+# test_vocab()
+def run_rag_demo():
+    ragged_sentences = tf.ragged.constant([
+        ['Hi'], ['Welcome', 'to', 'the', 'fair'], ['Have', 'fun']])
+
+    # RaggedTensor -> Tensor
+    print(ragged_sentences.to_tensor(default_value='', shape=[None, 10]))
+
+    # Tensor -> RaggedTensor
+    x = [[1, 3, -1, -1], [2, -1, -1, -1], [4, 5, 8, 9]]
+    print(tf.RaggedTensor.from_tensor(x, padding=-1))
+    #RaggedTensor -> SparseTensor
+    print(ragged_sentences.to_sparse())
+
+    # SparseTensor -> RaggedTensor
+    st = tf.SparseTensor(indices=[[0, 0], [2, 0], [2, 1]],
+                         values=['a', 'b', 'c'],
+                         dense_shape=[3, 3])
+    print(tf.RaggedTensor.from_sparse(st))
+
+# run_rag_demo()
+
+# 用于创建一个特征列
+# 并转换一批次数据的一个实用程序方法
+# def demo(feature_column):
+#   feature_layer = tf.layers.DenseFeatures(feature_column)
+#   print(feature_layer(example_batch).numpy())
+#
+# # 注意到嵌入列的输入是我们之前创建的类别列
+# thal_embedding = feature_column.embedding_column(thal, dimension=8)
+# demo(thal_embedding)
+
+embedding_initializer = None
+# if has_pretrained_embedding:
+#   embedding_initializer=tf.contrib.framework.load_embedding_initializer(
+#         ckpt_path=xxxx)
+# else:
+# embedding_initializer=tf.random_uniform_initializer(-1.0, 1.0)
+#
+# states = tf.feature_column.categorical_column_with_vocabulary_file(
+#     key='states', vocabulary_file='/us/states.txt', vocabulary_size=50,
+#     num_oov_buckets=5)
+#
+# embed_column = tf.feature_column.embedding_column(
+#     categorical_column=cat_column_with_vocab,
+#     dimension=256,   ## this is your pre-trained embedding dimension
+#     initializer=embedding_initializer,
+#     trainable=False)
+#
+# price_column = tf.feature_column.numeric_column('price')
+#
+# columns = [embed_column, price_column]
+#
+# features = tf.io.parse_example(
+#   ..., features=tf.feature_column.make_parse_example_spec(columns + [label_column]))
+# labels = features.pop(label_column.name)
+#
+# features = tf.parse_example(...,
+#     features=tf.feature_column.make_parse_example_spec(columns))
+# dense_tensor = tf.feature_column.input_layer(features, columns)
+# for units in [128, 64, 32]:
+#   dense_tensor = tf.layers.dense(dense_tensor, units, tf.nn.relu)
+# prediction = tf.layers.dense(dense_tensor, 1)
+
+# def lookup_demo():
+#     keys_tensor = tf.constant([b'hello', b'world'])
+#     vals_tensor = tf.constant([3, 4], dtype=tf.int64)
+#     input_tensor = tf.constant([b'hello', b'ggg'])
+#
+#     kv_initializer = tf.lookup.KeyValueTensorInitializer(keys_tensor, vals_tensor)
+#
+#     """ profile_feats.txt
+#     hello
+#     world
+#     """
+#     file_initializer = tf.lookup.TextFileInitializer("char.txt",
+#                                                      tf.string, tf.lookup.TextFileIndex.WHOLE_LINE,
+#                                                      tf.int64, tf.lookup.TextFileIndex.LINE_NUMBER)
+#
+#     table_1 = tf.lookup.StaticHashTable(kv_initializer, -1)
+#     table_2 = tf.lookup.StaticHashTable(file_initializer, -1)
+#
+#     table_3 = tf.lookup.StaticVocabularyTable(kv_initializer, num_oov_buckets=10)
+#     table_4 = tf.lookup.StaticVocabularyTable(file_initializer, num_oov_buckets=10)
+#
+#     out_1 = table_1.lookup(input_tensor)
+#     out_2 = table_2.lookup(input_tensor)
+#     out_3 = table_3.lookup(input_tensor)
+#     out_4 = table_4.lookup(input_tensor)
+#
+#     with tf.Session() as sess:
+#         sess.run(tf.tables_initializer())
+#         print(sess.run([out_1, out_2, out_3, out_4]))
+#
+# lookup_demo()
+

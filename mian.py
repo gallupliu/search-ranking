@@ -98,3 +98,46 @@
 #     #训练
 #
 #     #测试
+
+import tensorflow as tf
+
+filename = './char.txt'
+num_oov_buckets = 3
+# input_tensor = tf.constant(["牛", "奶", "液", "口", "味"])
+# input_tensor = tf.constant([["牛", "奶"], ["液","体"], ["口", "味"]])
+text = tf.constant(["牛  体", "液 体", "牛 奶 口 味"])
+
+input_tensor = tf.strings.split(text)
+list_size = 3
+batch_size = 3
+input_tensor_0 = input_tensor.to_tensor(default_value='<pad>',shape=[3, 3])
+input_tensor_1 = input_tensor.to_tensor(default_value='<pad>',shape=[3, 4])
+# print(input_tensor)
+# print(tf.strings.length(input_tensor).numpy())
+# cur_list_size = tf.shape(input=input_tensor)[1]
+# #截断
+# def truncate_fn():
+#     return tf.slice(serialized_list, [0, 0], [batch_size, list_size])
+# #补长
+# def pad_fn():
+#     return tf.pad(
+#         tensor=serialized_list,
+#         paddings=[[0, 0], [0, list_size - cur_list_size]],
+#         constant_values="")
+#
+# serialized_list = tf.cond(
+#     pred=cur_list_size > list_size, true_fn=truncate_fn, false_fn=pad_fn)
+# print(serialized_list)
+
+table = tf.lookup.StaticVocabularyTable(
+    tf.lookup.TextFileInitializer(
+        filename,
+        key_dtype=tf.string, key_index=tf.lookup.TextFileIndex.WHOLE_LINE,
+        value_dtype=tf.int64, value_index=tf.lookup.TextFileIndex.LINE_NUMBER,
+        delimiter="\t"),
+    num_oov_buckets)
+out = table.lookup(input_tensor_0)
+print(out)
+
+out_1 = table.lookup(input_tensor_1)
+print(out_1)

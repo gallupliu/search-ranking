@@ -7,6 +7,22 @@ from utils.feature_column import get_item_embed
 from deepctr.models import DeepFM
 from deepctr.feature_column import SparseFeat, DenseFeat, VarLenSparseFeat
 from deepctr.estimator import DeepFMEstimator
+from deepctr.estimator.inputs import input_fn_tfrecord
+import tensorflow_text as tf_text
+
+_VOCAB = ['[pad]', '<unk>', 'the', 'a', '牛', '奶', '液', '体', '安', '慕', '婴', '儿', '口', '味']
+
+_VOCAB_SIZE = len(_VOCAB)
+
+table = tf.lookup.StaticVocabularyTable(
+    tf.lookup.KeyValueTensorInitializer(
+        keys=_VOCAB,
+        key_dtype=tf.string,
+        values=tf.range(
+            tf.size(_VOCAB, out_type=tf.int64), dtype=tf.int64),
+        value_dtype=tf.int64),
+    num_oov_buckets=1
+)
 
 
 def input_fn(data_path, shuffle, num_epochs, batch_size):
@@ -15,7 +31,7 @@ def input_fn(data_path, shuffle, num_epochs, batch_size):
     def _parse_function(example_proto):
         item_feats = tf.io.decode_csv(example_proto, record_defaults=DEFAULT_VALUES, field_delim='\t')
         parsed = dict(zip(COL_NAME, item_feats))
-
+        tokenizer = tf_text.WhitespaceTokenizer()
         feature_dict = {}
         for feat_col in feature_columns:
             print(parsed)
@@ -48,7 +64,11 @@ def input_fn(data_path, shuffle, num_epochs, batch_size):
                 if 'char' in feat_col.name or 'word' in feat_col.name:
                     print('feat_col.name:{0}'.format(parsed[feat_col.name.split('_')[0]]))
                     keys = tf.strings.split(parsed[feat_col.name.split('_')[0]], ' ')
-                    print('keys:{0}'.format(keys))
+                    tokens = tokenizer.tokenize(parsed[feat_col.name.split('_')[0]])
+                    cur_list_size = tokens.shape[0]
+                    ids = table.lookup(tokens)
+                    # ids = tf.reshape(ids, [1, -1])
+                    print('keys:{0} ,{1},{2}'.format(cur_list_size,keys,ids))
                     emb = tf.nn.embedding_lookup(params=CHAR_EMBEDDING, ids=CHAR_ID2IDX.lookup(keys))
                     # emb = tf.reduce_mean(emb, axis=0) if feat_col.reduce_type == 'mean' else tf.reduce_sum(emb, axis=0)
                     emb = tf.reduce_mean(emb, axis=0)
@@ -80,14 +100,18 @@ def input_fn(data_path, shuffle, num_epochs, batch_size):
     dataset = dataset.repeat()
     dataset = dataset.shuffle(buffer_size=batch_size)  # 在缓冲区中随机打乱数据
 
-    # epochs from blending together.
-    # dataset = dataset.repeat(num_epochs)
-    # dataset = dataset.batch(batch_size) # Batch size to use
 
     dataset = dataset.padded_batch(batch_size=batch_size,
                                    padded_shapes=pad_shapes,
                                    padding_values=pad_values)  # 每1024条数据为一个batch，生成一个新的Datasets
     dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+
+    # try:
+    #     iterator = dataset.make_one_shot_iterator()
+    # except AttributeError:
+    #     iterator = tf.compat.v1.data.make_one_shot_iterator(dataset)
+    #
+    # return iterator.get_next()
 
     return dataset
 
@@ -204,21 +228,11 @@ if __name__ == "__main__":
     ########################################################################
     #################模型训练##############
     ########################################################################
-    #
-    # model = DeepFM(linear_feature_columns, fm_group_columns, DICT_CATEGORICAL, dnn_hidden_units=(128, 128),
-    #                dnn_activation='relu',
-    #                seed=1024, )
 
     model = DeepFM(feature_columns, dnn_feature_columns=feature_columns, fm_group=feature_columns, task='binary')
     model.compile(optimizer="adam", loss="binary_crossentropy", metrics=tf.keras.metrics.AUC(name='auc'))
 
-    # 3.Define Model,train,predict and evaluate
-    # model = DeepFMEstimator(linear_feature_columns, fm_group_columns, task='binary')
 
-    # model.train(lambda:train_input)
-    # eval_result = model.evaluate(lambda:val_input)
-    #
-    # print(eval_result)
 
     log_dir = './tensorboardshare/logs/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     tbCallBack = TensorBoard(log_dir=log_dir,  # log 目录
@@ -241,3 +255,11 @@ if __name__ == "__main__":
                              verbose=1, callbacks=[tbCallBack])
     model_save_path = os.path.join('./', "deepfm/")
     tf.saved_model.save(model, model_save_path)
+
+    # 3.Define Model,train,predict and evaluate
+    # model = DeepFMEstimator(linear_feature_columns, fm_group_columns, task='binary')
+    #
+    # model.train(lambda:train_input)
+    # eval_result = model.evaluate(lambda:val_input)
+    #
+    # print(eval_result)
