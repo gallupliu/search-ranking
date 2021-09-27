@@ -2,7 +2,7 @@ import os
 import shutil
 # import tensorflow as tf
 import tensorflow.compat.v1 as tf
-from config.feature.census_ctr_feat_config import CENSUS_CONFIG, build_census_feat_columns
+from config.feature.census_ctr_feat_config_v1 import CENSUS_CONFIG, build_census_feat_columns
 from models.wdl_v1     import wdl_estimator
 from models.deepfm_v1  import deepfm_model_fn
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -142,8 +142,8 @@ def train_census_data():
         'train_data_dir'          : './data/raw/adult/adult.data',
         'valid_data_dir'          : './data/raw/adult/adult.eval',
         'test_data_dir'           : './data/raw/adult/adult.test',
-        'train_data_tfrecords_dir': './data/raw/adult/train.tfrecords',
-        'test_data_tfrecords_dir' : './data/raw/adult/test.tfrecords',
+        'train_data_tfrecords_dir': './data/text/adult/train.tfrecords',
+        'test_data_tfrecords_dir' : './data/text/adult/test.tfrecords',
         'load_tf_records_data'    :  True,
         'ckpt_dir'                :  CENSUS_PATH + 'ckpt_dir/',
         # traning process config
@@ -167,20 +167,20 @@ def train_census_data():
     shutil.rmtree(ARGS['ckpt_dir']+'/'+ARGS['model_name']+'/', ignore_errors=True)
     model = build_estimator(ARGS['ckpt_dir'], ARGS['model_name'], params_config=ARGS)
 
-    dataset = census_input_fn_from_csv_file(
-        data_file=ARGS['train_data_dir'],
-        num_epochs=ARGS['train_epoches_num'],
-        shuffle=True if ARGS['shuffle'] == True else False,
-        batch_size=ARGS['batch_size']
-    )
-    with tf.Session() as session:
-        session.run(tf.global_variables_initializer())
-        session.run(tf.tables_initializer())
-
-        print('value')
-        for i in range(5):
-            print(dataset)
-            print(session.run(dataset))
+    # dataset = census_input_fn_from_csv_file(
+    #     data_file=ARGS['train_data_dir'],
+    #     num_epochs=ARGS['train_epoches_num'],
+    #     shuffle=True if ARGS['shuffle'] == True else False,
+    #     batch_size=ARGS['batch_size']
+    # )
+    # with tf.Session() as session:
+    #     session.run(tf.global_variables_initializer())
+    #     session.run(tf.tables_initializer())
+    #
+    #     print('value')
+    #     for i in range(5):
+    #         print(dataset)
+    #         print(session.run(dataset))
 
     if not ARGS.get('load_tf_records_data'):
         model.train(
