@@ -89,6 +89,7 @@ def census_text_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_si
             'income_bracket': tf.io.FixedLenFeature([], tf.float32),
             # 'text': tf.io.FixedLenFeature([], tf.string),
             'text': tf.io.FixedLenSequenceFeature([], tf.string, allow_missing=True, default_value='0'),
+            'bert_emb':tf.io.FixedLenFeature([10], tf.float32),  # item向量
         }
         features = tf.io.parse_single_example(record, features)
         # labels = tf.equal(features.pop('income_bracket'), '>50K')

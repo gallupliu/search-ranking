@@ -1,4 +1,5 @@
 import csv
+import numpy as np
 import pandas as pd
 import random
 import json
@@ -11,7 +12,7 @@ TEST_RAW = ROOT_PATH + 'adult/adult.test'
 MODEL_PATH = '/tmp/adult_model'
 EXPORT_PATH = '/tmp/adult_export_model'
 
-
+EMBEDDING_FEATURE_NAMES = ['bert_emb']
 NUMERIC_FEATURE_NAMES = ['age', 'education_num', 'capital_gain', 'capital_loss', 'hours_per_week']
 CATEGORICAL_FEATURE_WITH_VOCABULARY = {
     'workclass': ['State-gov', 'Self-emp-not-inc', 'Private', 'Federal-gov', 'Local-gov', '?', 'Self-emp-inc',
@@ -142,10 +143,13 @@ def create_example(row, vocab,header):
 
         feature_name = header[i]
         feature_value = row[i]
-        print(i, feature_name, feature_value)
+        print(i, feature_name, feature_value,type(feature_value))
 
         if feature_name in NUMERIC_FEATURE_NAMES:
             example.features.feature[feature_name].float_list.value.extend([float(feature_value)])
+
+        if feature_name in EMBEDDING_FEATURE_NAMES:
+            example.features.feature[feature_name].float_list.value.extend([float(value) for value in feature_value.replace('[','').replace(']','').split(',')])
 
         elif feature_name in CATEGORICAL_FEATURE_NAMES:
             example.features.feature[feature_name].bytes_list.value.extend([bytes(feature_value, 'utf-8')])
@@ -267,6 +271,7 @@ def census_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_size):
             'income_bracket': tf.io.FixedLenFeature([], tf.float32),
             # 'text': tf.io.FixedLenFeature([], tf.string),
             'text': tf.io.FixedLenSequenceFeature([], tf.string, allow_missing=True, default_value='0'),
+            'bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # item向量
         }
         features = tf.io.parse_single_example(record, features)
         # labels = tf.equal(features.pop('income_bracket'), '>50K')
@@ -320,10 +325,12 @@ def run():
     if args.type == "text":
         lst = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         print(random.sample(lst, 4))
-        HEADER = HEADER + ['text']
+        HEADER = HEADER + ['text']+['bert_emb']
         # random.randint(3,5)
         train_df['text'] = train_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
         test_df['text'] = test_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
+        train_df['bert_emb'] = train_df.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
+        test_df['bert_emb'] = test_df.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
         ROOT_PATH = ROOT_PATH + 'text/'
     else:
         ROOT_PATH = ROOT_PATH + 'raw/'
