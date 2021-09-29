@@ -250,5 +250,6 @@ def train_census_data():
 if __name__ == '__main__':
     tf.logging.set_verbosity(tf.logging.INFO)
     tf.set_random_seed(1)
+    print(tf.__version__)
     train_census_data()
 
