@@ -43,7 +43,7 @@ def deepfm_model_fn(features, labels, mode, params):
             'label':            predictions
         }
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
-
+    labels = tf.reshape(labels, [-1,1])
     loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=labels, logits=o_layer))
 
     if mode == tf.estimator.ModeKeys.TRAIN:
@@ -70,4 +70,10 @@ def deepfm_model_fn(features, labels, mode, params):
         tf.summary.scalar('accuracy', accuracy[1])
         tf.summary.scalar('auc', auc[1])
         return tf.estimator.EstimatorSpec(mode, loss=loss, eval_metric_ops=my_metrics)
+
+    if mode == tf.estimator.ModeKeys.PREDICT:
+        feature_spec = tf.feature_column.make_parse_example_spec(feature_columns=columns)
+        print('feature_spec:{0}'.format(feature_spec))
+        serving_input_fn = tf.estimator.export.build_parsing_serving_input_receiver_fn(feature_spec)
+        model.export_savedmodel(EXPORT_PATH, serving_input_fn)
 
