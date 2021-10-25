@@ -4,128 +4,105 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.feature_column as fc
 
-CENSUS_CONFIG = {
-    'columns': ['age', 'workclass', 'fnlwgt', 'education', 'education_num', 'marital_status', 'occupation',
-                'relationship', 'race', 'gender', 'capital_gain', 'capital_loss', 'hours_per_week', 'native_country',
-                'income_bracket', 'text', 'bert_emb'],
-    'columns_defaults': [[-1], [''], [-1], [''], [-1], [''], [''], [''], [''], [''], [-1], [-1], [-1], [''], [''],
-                         [''], [0.0]],
+HYS_CONFIG = {
+# label
+    'columns': ['id','keyword', 'title', 'brand', 'tag', 'volume', 'type', 'user_bert_emb','item_bert_emb',
+                'label'],
+    'columns_defaults': [[-1], [''], [''],  [''], [''],  [0.0], [-1], [-1],
+                         [-1]],
     'vocab_size': {
-        'gender': 2,
-        'education': 16,
-        'relationship': 6,
-        'marital_status': 7,
-        'workclass': 9,
-        'native_country': 42,
-        'occupation': 15,
+        'type': 3,
+
     },
-    'vocab_file': './ids.txt',
-    'deep_emb_cols': ['gender', 'education', 'relationship', 'marital_status', 'workclass', 'native_country',
-                      'occupation'],
-    'deep_bucket_emb_cols': ['age', 'education_num', 'capital_gain', 'capital_loss', 'hours_per_week'],
-    'wide_muti_hot_cols': ['gender', 'education', 'relationship', 'marital_status', 'workclass', 'native_country',
-                           'occupation'],
-    'wide_bucket_cols': ['age', 'education_num', 'capital_gain', 'capital_loss', 'hours_per_week'],
-    'wide_cross_cols': [('education', 'occupation'), ('native_country', 'occupation'), ('gender', 'occupation')],
-    'text_cols': ['query', 'title'],
-    'emb_cols': ['user_emb', 'item_emb'],
+    'vocab_file': './char.txt',
+    'deep_emb_cols': [ 'type'],
+    'deep_bucket_emb_cols': ['volume',],
+    'wide_muti_hot_cols': ['type'],
+    'wide_bucket_cols': ['volume'],
+    'wide_cross_cols': [('type', 'volume'),],
+    'text_cols': ['keyword', 'title', 'brand', 'tag'],
+    'emb_cols': ['user_bert_emb','item_bert_emb'],
 }
 
 
-def build_census_feat_columns(emb_dim=8):
+def build_hys_feat_columns(emb_dim=8):
     def _get_numeric_feat_range():
-        train = pd.read_csv('./data/raw/adult/adult.data', header=None, names=CENSUS_CONFIG['columns'])[
-            CENSUS_CONFIG['deep_bucket_emb_cols']]
-        test = pd.read_csv('./data/raw/adult/adult.test', header=None, names=CENSUS_CONFIG['columns'])[
-            CENSUS_CONFIG['deep_bucket_emb_cols']]
+        # train = pd.read_csv('./data/raw/adult/adult.data', header=None, names=HYS_CONFIG['columns'])[
+        #     HYS_CONFIG['deep_bucket_emb_cols']]
+        # test = pd.read_csv('./data/raw/adult/adult.test', header=None, names=HYS_CONFIG['columns'])[
+        #     HYS_CONFIG['deep_bucket_emb_cols']]
         # lst = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         # train['text'] = train.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
         # test['text'] = test.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
         # train['bert_emb'] = train.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
         # test['bert_emb'] = test.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
-        total = pd.concat([train, test], axis=0)
+        # total = pd.concat([train, test], axis=0)
+        total = pd.read_csv('./hys_df_test.csv', header=None, names=HYS_CONFIG['columns'])[
+            HYS_CONFIG['deep_bucket_emb_cols']]
         numeric_range = {}
-        for col in CENSUS_CONFIG['deep_bucket_emb_cols']:
+        for col in HYS_CONFIG['deep_bucket_emb_cols']:
             numeric_range[col] = (total[col].min(), total[col].max())
         return numeric_range
 
-    def _build_census_deep_columns(emb_dim=8, numeric_range=None):
+    def _build_hys_deep_columns(emb_dim=8, numeric_range=None):
         feature_columns = []
-        for col in CENSUS_CONFIG['deep_emb_cols']:
+        for col in HYS_CONFIG['deep_emb_cols']:
             feature_columns.append(
-                fc.embedding_column(fc.categorical_column_with_hash_bucket(col, hash_bucket_size=10 if
-                CENSUS_CONFIG['vocab_size'][col] <= 100 else CENSUS_CONFIG['vocab_size'][col] + 100),
+                fc.embedding_column(fc.categorical_column_with_hash_bucket(col, hash_bucket_size=1000 if
+                HYS_CONFIG['vocab_size'][col] <= 1000 else HYS_CONFIG['vocab_size'][col] + 10000),
                                     dimension=emb_dim)
             )
-        for col in CENSUS_CONFIG['deep_bucket_emb_cols']:
+        for col in HYS_CONFIG['deep_bucket_emb_cols']:
             feature_columns.append(
                 fc.embedding_column(fc.bucketized_column(fc.numeric_column(col), boundaries=list(
-                    np.linspace(numeric_range[col][0], numeric_range[col][1], 100))), dimension=emb_dim)
+                    np.linspace(numeric_range[col][0], numeric_range[col][1], 1000))), dimension=emb_dim)
             )
-
-        feat_field_size = len(feature_columns)
-        return feature_columns, feat_field_size
-
-    def _build_census_text_columns(numeric_range=None):
-        feature_columns = []
-        for col in CENSUS_CONFIG['text_cols']:
+        for col in HYS_CONFIG['text_cols']:
             text_column = fc.categorical_column_with_vocabulary_file(
                 key=col,
-                vocabulary_file='./ids.txt',
+                vocabulary_file='./char.txt',
                 num_oov_buckets=0)
             feature_columns.append(fc.embedding_column(text_column, 10))
+        for col in HYS_CONFIG['emb_cols']:
+            fc.numeric_column(key=col, shape=(10,), default_value=[0.0] * 10, dtype=tf.float32)
+
         feat_field_size = len(feature_columns)
         return feature_columns, feat_field_size
 
-    def _build_census_emb_columns(numeric_range=None):
-        feature_columns = []
-        for col in CENSUS_CONFIG['emb_cols']:
-            feature_columns.append(fc.numeric_column(key=col, shape=(10,), default_value=[0.0] * 10, dtype=tf.float32))
-        feat_field_size = len(feature_columns)
-        return feature_columns, feat_field_size
-
-    def _build_census_wide_columns(numeric_range=None):
+    def _build_hys_wide_columns(numeric_range=None):
         base_columns, cross_columns = [], []
-        for col in CENSUS_CONFIG['wide_muti_hot_cols']:
+        for col in HYS_CONFIG['wide_muti_hot_cols']:
             base_columns.append(
-                fc.indicator_column(fc.categorical_column_with_hash_bucket(col, hash_bucket_size=10 if
-                CENSUS_CONFIG['vocab_size'][col] <= 100 else CENSUS_CONFIG['vocab_size'][col] + 100))
+                fc.indicator_column(fc.categorical_column_with_hash_bucket(col, hash_bucket_size=1000 if
+                HYS_CONFIG['vocab_size'][col] <= 1000 else HYS_CONFIG['vocab_size'][col] + 10000))
             )
-        for col in CENSUS_CONFIG['wide_bucket_cols']:
+        for col in HYS_CONFIG['wide_bucket_cols']:
             base_columns.append(
                 fc.bucketized_column(fc.numeric_column(col),
-                                     boundaries=list(np.linspace(numeric_range[col][0], numeric_range[col][1], 100)))
+                                     boundaries=list(np.linspace(numeric_range[col][0], numeric_range[col][1], 1000)))
             )
-        for col in CENSUS_CONFIG['wide_cross_cols']:
+        for col in HYS_CONFIG['wide_cross_cols']:
             cross_columns.append(
-                fc.indicator_column(fc.crossed_column([col[0], col[1]], hash_bucket_size=10))
+                fc.indicator_column(fc.crossed_column([col[0], col[1]], hash_bucket_size=10000))
             )
         feature_columns = base_columns + cross_columns
         feat_field_size = len(feature_columns)
         return feature_columns, feat_field_size
 
     numeric_range = _get_numeric_feat_range()
-    deep_columns, deep_fields_size = _build_census_deep_columns(emb_dim, numeric_range)
-    wide_columns, wide_fields_size = _build_census_wide_columns(numeric_range)
-    emb_columns, emb_fields_size = _build_census_emb_columns(numeric_range)
-    text_columns, text_fields_size = _build_census_text_columns(numeric_range)
-
+    deep_columns, deep_fields_size = _build_hys_deep_columns(emb_dim, numeric_range)
+    wide_columns, wide_fields_size = _build_hys_wide_columns(numeric_range)
     feat_config = {
         'deep_columns': deep_columns,
         'deep_fields_size': deep_fields_size,
         'wide_columns': wide_columns,
         'wide_fields_size': wide_fields_size,
         'embedding_dim': emb_dim,
-        'emb_columns': emb_columns,
-        'emb_fields_size': emb_fields_size,
-        'text_columns': text_columns,
-        'text_fields_size': text_fields_size
-
     }
     return feat_config
 
 
-def official_census_feature_columns_config_demo():
+def official_hys_feature_columns_config_demo():
     # categorical_column
     gender = fc.categorical_column_with_vocabulary_list('gender', ['Female', 'Male'])
     education = fc.categorical_column_with_vocabulary_list('education',

@@ -4,6 +4,7 @@ import pandas as pd
 import random
 import json
 import tensorflow as tf
+from run_ctr_model import census_text_input_fn_from_tfrecords
 
 ROOT_PATH = './data/'
 TRAIN_RAW = ROOT_PATH + 'adult/adult.data'
@@ -12,7 +13,7 @@ TEST_RAW = ROOT_PATH + 'adult/adult.test'
 MODEL_PATH = '/tmp/adult_model'
 EXPORT_PATH = '/tmp/adult_export_model'
 
-EMBEDDING_FEATURE_NAMES = ['bert_emb']
+EMBEDDING_FEATURE_NAMES = ['user_emb', 'item_emb']
 NUMERIC_FEATURE_NAMES = ['age', 'education_num', 'capital_gain', 'capital_loss', 'hours_per_week']
 CATEGORICAL_FEATURE_WITH_VOCABULARY = {
     'workclass': ['State-gov', 'Self-emp-not-inc', 'Private', 'Federal-gov', 'Local-gov', '?', 'Self-emp-inc',
@@ -30,7 +31,7 @@ CATEGORICAL_FEATURE_WITH_HASH_BUCKETS = {
     'native_country': 60,
     'occupation': 20
 }
-TEXT_FEATURE_NAMES = ['text']
+TEXT_FEATURE_NAMES = ['query', 'title']
 CATEGORICAL_FEATURE_NAMES = list(CATEGORICAL_FEATURE_WITH_VOCABULARY.keys()) + list(
     CATEGORICAL_FEATURE_WITH_HASH_BUCKETS.keys())
 FEATURE_NAMES = NUMERIC_FEATURE_NAMES + list(CATEGORICAL_FEATURE_WITH_VOCABULARY.keys()) + list(
@@ -133,23 +134,25 @@ char_file_names = ['./data/char.json']
 
 
 # CHAR_ID2IDX, CHAR_EMBEDDING = get_item_embed(char_file_names, embedding_dim)
-def create_example(row, vocab,header):
+def create_example(row, vocab, header):
     """
     Returns a tensorflow.Example Protocol Buffer object.
     """
     example = tf.train.Example()
-    print('row:{0}'.format(row))
+    # print('row:{0}'.format(row))
     for i in range(len(header)):
 
         feature_name = header[i]
         feature_value = row[i]
-        print(i, feature_name, feature_value,type(feature_value))
+        if 'emb' in feature_name or 'text' in feature_name:
+            print(i, feature_name, feature_value, type(feature_value))
 
         if feature_name in NUMERIC_FEATURE_NAMES:
             example.features.feature[feature_name].float_list.value.extend([float(feature_value)])
 
         if feature_name in EMBEDDING_FEATURE_NAMES:
-            example.features.feature[feature_name].float_list.value.extend([float(value) for value in feature_value.replace('[','').replace(']','').split(',')])
+            example.features.feature[feature_name].float_list.value.extend(
+                [float(value) for value in feature_value.replace('[', '').replace(']', '').split(',')])
 
         elif feature_name in CATEGORICAL_FEATURE_NAMES:
             example.features.feature[feature_name].bytes_list.value.extend([bytes(feature_value, 'utf-8')])
@@ -186,7 +189,7 @@ def create_example(row, vocab,header):
     return example
 
 
-def create_tfrecords_file(input_csv_file,header):
+def create_tfrecords_file(input_csv_file, header):
     """
     Creates a TFRecords file for the given input data and
     example transofmration function
@@ -201,7 +204,7 @@ def create_tfrecords_file(input_csv_file,header):
         if len(row) == 0:
             continue
 
-        example = create_example(row, vocab,header)
+        example = create_example(row, vocab, header)
         content = example.SerializeToString()
         writer.write(content)
 
@@ -248,48 +251,48 @@ def create_embeddings(output_path, starting_record_id):
 
 
 # create_embeddings('./data/adult/test.tfr', 1)
-
-def census_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_size):
-    def _parse_census_TFRecords_fn(record):
-        features = {
-            # int
-            'age': tf.io.FixedLenFeature([], tf.float32),
-            # 'fnlwgt':         tf.io.FixedLenFeature([], tf.float32),
-            'education_num': tf.io.FixedLenFeature([], tf.float32),
-            'capital_gain': tf.io.FixedLenFeature([], tf.float32),
-            'capital_loss': tf.io.FixedLenFeature([], tf.float32),
-            'hours_per_week': tf.io.FixedLenFeature([], tf.float32),
-            # string
-            'gender': tf.io.FixedLenFeature([], tf.string),
-            'education': tf.io.FixedLenFeature([], tf.string),
-            'marital_status': tf.io.FixedLenFeature([], tf.string),
-            'relationship': tf.io.FixedLenFeature([], tf.string),
-            'race': tf.io.FixedLenFeature([], tf.string),
-            'workclass': tf.io.FixedLenFeature([], tf.string),
-            'native_country': tf.io.FixedLenFeature([], tf.string),
-            'occupation': tf.io.FixedLenFeature([], tf.string),
-            'income_bracket': tf.io.FixedLenFeature([], tf.float32),
-            # 'text': tf.io.FixedLenFeature([], tf.string),
-            'text': tf.io.FixedLenSequenceFeature([], tf.string, allow_missing=True, default_value='0'),
-            'bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # item向量
-        }
-        features = tf.io.parse_single_example(record, features)
-        # labels = tf.equal(features.pop('income_bracket'), '>50K')
-        # labels = tf.reshape(labels, [-1])
-        # labels = tf.to_float(labels)
-        labels = features.pop('income_bracket')
-        return features, labels
-
-    assert tf.io.gfile.exists(data_file), ('no file named: ' + str(data_file))
-
-    dataset = tf.data.TFRecordDataset(data_file).map(_parse_census_TFRecords_fn, num_parallel_calls=10)
-    if shuffle:
-        dataset = dataset.shuffle(buffer_size=5000)
-    dataset = dataset.repeat(num_epochs)
-    dataset = dataset.batch(batch_size)
-    iterator = dataset.make_one_shot_iterator()
-    features, labels = iterator.get_next()
-    return features, labels
+#
+# def census_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_size):
+#     def _parse_census_TFRecords_fn(record):
+#         features = {
+#             # int
+#             'age': tf.io.FixedLenFeature([], tf.float32),
+#             # 'fnlwgt':         tf.io.FixedLenFeature([], tf.float32),
+#             'education_num': tf.io.FixedLenFeature([], tf.float32),
+#             'capital_gain': tf.io.FixedLenFeature([], tf.float32),
+#             'capital_loss': tf.io.FixedLenFeature([], tf.float32),
+#             'hours_per_week': tf.io.FixedLenFeature([], tf.float32),
+#             # string
+#             'gender': tf.io.FixedLenFeature([], tf.string),
+#             'education': tf.io.FixedLenFeature([], tf.string),
+#             'marital_status': tf.io.FixedLenFeature([], tf.string),
+#             'relationship': tf.io.FixedLenFeature([], tf.string),
+#             'race': tf.io.FixedLenFeature([], tf.string),
+#             'workclass': tf.io.FixedLenFeature([], tf.string),
+#             'native_country': tf.io.FixedLenFeature([], tf.string),
+#             'occupation': tf.io.FixedLenFeature([], tf.string),
+#             'income_bracket': tf.io.FixedLenFeature([], tf.float32),
+#             # 'text': tf.io.FixedLenFeature([], tf.string),
+#             'text': tf.io.FixedLenSequenceFeature([], tf.string, allow_missing=True, default_value='0'),
+#             'bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # item向量
+#         }
+#         features = tf.io.parse_single_example(record, features)
+#         # labels = tf.equal(features.pop('income_bracket'), '>50K')
+#         # labels = tf.reshape(labels, [-1])
+#         # labels = tf.to_float(labels)
+#         labels = features.pop('income_bracket')
+#         return features, labels
+#
+#     assert tf.io.gfile.exists(data_file), ('no file named: ' + str(data_file))
+#
+#     dataset = tf.data.TFRecordDataset(data_file).map(_parse_census_TFRecords_fn, num_parallel_calls=10)
+#     if shuffle:
+#         dataset = dataset.shuffle(buffer_size=5000)
+#     dataset = dataset.repeat(num_epochs)
+#     dataset = dataset.batch(batch_size)
+#     iterator = dataset.make_one_shot_iterator()
+#     features, labels = iterator.get_next()
+#     return features, labels
 
 
 def run():
@@ -302,74 +305,80 @@ def run():
     args = parser.parse_args()
 
     ROOT_PATH = './data/'
-    TRAIN_RAW = ROOT_PATH + 'adult/adult.data'
-    TEST_RAW = ROOT_PATH + 'adult/adult.test'
+    # TRAIN_RAW = ROOT_PATH + 'adult/adult.data'
+    # TEST_RAW = ROOT_PATH + 'adult/adult.test'
+    #
+    # HEADER = ['age', 'workclass', 'fnlwgt', 'education', 'education_num',
+    #           'marital_status', 'occupation', 'relationship', 'race', 'gender',
+    #           'capital_gain', 'capital_loss', 'hours_per_week',
+    #           'native_country', 'income_bracket']
+    #
+    # HEADER_DEFAULTS = [[0], [''], [0], [''], [0], [''], [''], [''], [''], [''],
+    #                    [0], [0], [0], [''], ['']]
+    # train_df = pd.read_csv(TRAIN_RAW, names=_CSV_COLUMNS)
+    # test_df = pd.read_csv(TEST_RAW, names=_CSV_COLUMNS)
+    #
+    # print(train_df.dtypes)
+    # for col in _CSV_COLUMNS:
+    #     if col in _STRING_COLS:
+    #         print('col:{0}'.format(col))
+    #         train_df[col] = train_df[col].map(lambda x: str(x).replace(' ', ''))
+    #         test_df[col] = test_df[col].map(lambda x: str(x).replace(' ', ''))
+    #
+    # if args.type == "text":
+    #     lst = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    #     print(random.sample(lst, 4))
+    #     HEADER = HEADER +TEXT_FEATURE_NAMES+ EMBEDDING_FEATURE_NAMES
+    #     # random.randint(3,5)
+    #     train_df['query'] = train_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
+    #     test_df['query'] = test_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
+    #     train_df['title'] = train_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
+    #     test_df['title'] = test_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
+    #     train_df['user_emb'] = train_df.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
+    #     test_df['user_emb'] = test_df.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
+    #     train_df['item_emb'] = train_df.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
+    #     test_df['item_emb'] = test_df.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
+    #     ROOT_PATH = ROOT_PATH + 'text/'
+    # else:
+    #     ROOT_PATH = ROOT_PATH + 'raw/'
+    # train_df['income_bracket'] = train_df.apply(lambda x: label_get(x.income_bracket), axis=1)
+    # test_df['income_bracket'] = test_df.apply(lambda x: label_get(x.income_bracket), axis=1)
+    #
+    # test_df.sample(frac=1, random_state=2021)
+    # eval = test_df.loc[: int(len(test_df) * 0.5)]
+    # test = test_df.loc[int(len(test_df) * 0.5) + 1:]
+    # test.reset_index(drop=True, inplace=True)
+    #
+    # TRAIN_PATH = ROOT_PATH + 'adult/train.csv'
+    # EVAL_PATH = ROOT_PATH + 'adult/eval.csv'
+    # TEST_PATH = ROOT_PATH + 'adult/test.csv'
+    # PREDICT_PATH = ROOT_PATH + 'adult/predict.csv'
+    #
+    # train_df.to_csv(TRAIN_PATH, index=False, header=None)
+    # eval.to_csv(EVAL_PATH, index=False, header=None)
+    # test.to_csv(TEST_PATH, index=False, header=None)
+    #
+    # train_data_files = [TRAIN_PATH]
+    # valid_data_files = [EVAL_PATH]
+    # test_data_files = [TEST_PATH]
+    #
+    # print("Converting Training Data Files")
+    # for input_csv_file in train_data_files:
+    #     create_tfrecords_file(input_csv_file,HEADER)
+    # print("")
+    #
+    # print("Converting Validation Data Files")
+    # for input_csv_file in valid_data_files:
+    #     create_tfrecords_file(input_csv_file,HEADER)
+    # print("")
+    #
+    # print("Converting Test Data Files")
+    # for input_csv_file in test_data_files:
+    #     create_tfrecords_file(input_csv_file,HEADER)
 
-    HEADER = ['age', 'workclass', 'fnlwgt', 'education', 'education_num',
-              'marital_status', 'occupation', 'relationship', 'race', 'gender',
-              'capital_gain', 'capital_loss', 'hours_per_week',
-              'native_country', 'income_bracket']
-
-    HEADER_DEFAULTS = [[0], [''], [0], [''], [0], [''], [''], [''], [''], [''],
-                       [0], [0], [0], [''], ['']]
-    train_df = pd.read_csv(TRAIN_RAW, names=_CSV_COLUMNS)
-    test_df = pd.read_csv(TEST_RAW, names=_CSV_COLUMNS)
-
-    print(train_df.dtypes)
-    for col in _CSV_COLUMNS:
-        if col in _STRING_COLS:
-            print('col:{0}'.format(col))
-            train_df[col] = train_df[col].map(lambda x: str(x).replace(' ', ''))
-            test_df[col] = test_df[col].map(lambda x: str(x).replace(' ', ''))
-
-    if args.type == "text":
-        lst = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-        print(random.sample(lst, 4))
-        HEADER = HEADER + ['text']+['bert_emb']
-        # random.randint(3,5)
-        train_df['text'] = train_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
-        test_df['text'] = test_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
-        train_df['bert_emb'] = train_df.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
-        test_df['bert_emb'] = test_df.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
-        ROOT_PATH = ROOT_PATH + 'text/'
-    else:
-        ROOT_PATH = ROOT_PATH + 'raw/'
-    train_df['income_bracket'] = train_df.apply(lambda x: label_get(x.income_bracket), axis=1)
-    test_df['income_bracket'] = test_df.apply(lambda x: label_get(x.income_bracket), axis=1)
-
-    test_df.sample(frac=1, random_state=2021)
-    eval = test_df.loc[: int(len(test_df) * 0.5)]
-    test = test_df.loc[int(len(test_df) * 0.5) + 1:]
-    test.reset_index(drop=True, inplace=True)
-
-    TRAIN_PATH = ROOT_PATH + 'adult/train.csv'
-    EVAL_PATH = ROOT_PATH + 'adult/eval.csv'
-    TEST_PATH = ROOT_PATH + 'adult/test.csv'
-    PREDICT_PATH = ROOT_PATH + 'adult/predict.csv'
-
-    train_df.to_csv(TRAIN_PATH, index=False, header=None)
-    eval.to_csv(EVAL_PATH, index=False, header=None)
-    test.to_csv(TEST_PATH, index=False, header=None)
-
-    train_data_files = [TRAIN_PATH]
-    valid_data_files = [EVAL_PATH]
-    test_data_files = [TEST_PATH]
-
-    print("Converting Training Data Files")
-    for input_csv_file in train_data_files:
-        create_tfrecords_file(input_csv_file,HEADER)
-    print("")
-
-    print("Converting Validation Data Files")
-    for input_csv_file in valid_data_files:
-        create_tfrecords_file(input_csv_file,HEADER)
-    print("")
-
-    print("Converting Test Data Files")
-    for input_csv_file in test_data_files:
-        create_tfrecords_file(input_csv_file,HEADER)
-
-    train_dataset = census_input_fn_from_tfrecords(ROOT_PATH + 'adult/train.tfrecords', 1, shuffle=True, batch_size=32)
+    print('path:{0}'.format(ROOT_PATH + 'adult/train.tfrecords'))
+    train_dataset = census_text_input_fn_from_tfrecords(ROOT_PATH + 'text/adult/train.tfrecords', 1, shuffle=True,
+                                                        batch_size=16)
     # iterator = train_dataset.make_one_shot_iterator()
     # element = iterator.get_next()
     with tf.Session() as session:
@@ -378,7 +387,7 @@ def run():
 
         print('value')
         for i in range(5):
-            print(train_dataset)
+            print('dict:{0}'.format(train_dataset))
             print(session.run(train_dataset))
 
 

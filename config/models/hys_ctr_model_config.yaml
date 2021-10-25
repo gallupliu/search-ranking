@@ -1,0 +1,28 @@
+train_data_dir: ./hys_df_test.csv
+valid_data_dir: ./hys_df_test.csv
+test_data_dir: ./hys_df_test.csv
+train_data_tfrecords_dir: test-output.tfrecord/part-00000-e53c3a27-a47d-434f-a066-9456b1152571-c000.tfrecord
+test_data_tfrecords_dir: test-output.tfrecord/part-00000-e53c3a27-a47d-434f-a066-9456b1152571-c000.tfrecord
+load_tf_records_data: True
+# traning process config
+shuffle: True
+model_name: deepfm
+optimizer: adam
+train_epoches_num: 1
+batch_size: 16
+epoches_per_eval: 2
+learning_rate: 0.01
+deep_layer_nerouns:
+  - 256
+  - 128
+  - 64
+#ckpt_dir: CENSUS_PATH + ckpt_dir/
+#embedding_dim: feat_columns[embedding_dim]
+#deep_columns: feat_columns[deep_columns]
+#deep_fields_size: feat_columns[deep_fields_size]
+#wide_columns: feat_columns[wide_columns]
+#wide_fields_size: feat_columns[wide_fields_size]
+#model_fn_map: MODEL_FN_MAP
+fibinet:
+  pooling:
+    max reduction_ratio: 2
