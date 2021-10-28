@@ -98,9 +98,9 @@ def deepfm_model_fn(features, labels, mode, params):
         tf.summary.scalar('auc', auc[1])
         return tf.estimator.EstimatorSpec(mode, loss=loss, eval_metric_ops=my_metrics)
 
-    if mode == tf.estimator.ModeKeys.PREDICT:
-        feature_spec = tf.feature_column.make_parse_example_spec(feature_columns=columns)
-        print('feature_spec:{0}'.format(feature_spec))
-        serving_input_fn = tf.estimator.export.build_parsing_serving_input_receiver_fn(feature_spec)
-        model.export_savedmodel(EXPORT_PATH, serving_input_fn)
+    # if mode == tf.estimator.ModeKeys.PREDICT:
+    #     feature_spec = tf.feature_column.make_parse_example_spec(feature_columns=columns)
+    #     print('feature_spec:{0}'.format(feature_spec))
+    #     serving_input_fn = tf.estimator.export.build_parsing_serving_input_receiver_fn(feature_spec)
+    #     model.export_savedmodel(EXPORT_PATH, serving_input_fn)
 

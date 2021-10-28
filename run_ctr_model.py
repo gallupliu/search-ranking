@@ -4,8 +4,8 @@ import shutil
 import yaml
 # import tensorflow as tf
 import tensorflow.compat.v1 as tf
-from config.feature.census_ctr_feat_config_v1 import CENSUS_CONFIG, build_census_feat_columns
-from config.feature.hys_ctr_feat_config_v1 import HYS_CONFIG, build_hys_feat_columns
+from config.feature.rank.census_ctr_feat_config_v1 import CENSUS_CONFIG, build_census_feat_columns
+from config.feature.rank.hys_ctr_feat_config_v1 import build_hys_feat_columns
 from models.wdl_v1 import wdl_estimator
 from models.deepfm_v1 import deepfm_model_fn
 
