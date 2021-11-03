@@ -16,6 +16,7 @@ def deepfm_model_fn(features, labels, mode, params):
 
     print('deep_fields_size:{0} org_emb_size:{1}'.format(deep_fields_size, org_emb_size))
     print('features:{0} '.format(features))
+    print('labels:{0} '.format(labels))
     print('deep_column:{0}'.format( deep_columns))
     print('wide_columns:{0}'.format(wide_columns))
     deep_input_layer = tf.feature_column.input_layer(features=features,feature_columns=deep_columns)
@@ -24,6 +25,7 @@ def deepfm_model_fn(features, labels, mode, params):
     with tf.name_scope('emb'):
         print('emb_columns:{0}'.format(emb_columns))
         emb_input_layer = tf.feature_column.input_layer(features=features, feature_columns=emb_columns)
+
         print('emb_input_layer:{0}'.format(emb_input_layer))
         emb_output_layer = tf.layers.dense(inputs=emb_input_layer, units=1, activation=None, use_bias=True)
         print('emb_output_layer:{0}'.format(emb_output_layer))
@@ -31,6 +33,8 @@ def deepfm_model_fn(features, labels, mode, params):
     with tf.name_scope('text'):
         text_input_layer = tf.feature_column.input_layer(features=features, feature_columns=text_columns)
         print('text_input_layer:{0}'.format(text_input_layer))
+        text_feat = tf.reshape(deep_input_layer, [-1, 2, 10])
+        print('text_feat:{0}'.format(text_feat))
         text_output_layer = tf.layers.dense(inputs=text_input_layer, units=1, activation=None, use_bias=True)
         print('text_output_layer:{0}'.format(text_output_layer))
 
@@ -71,8 +75,9 @@ def deepfm_model_fn(features, labels, mode, params):
         }
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
     labels = tf.reshape(labels, [-1,1])
+    print('labels reshape:{0} '.format(labels))
     loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=labels, logits=o_layer))
-
+    print('labels reshape 1:{0} '.format(labels))
     if mode == tf.estimator.ModeKeys.TRAIN:
         if   params['optimizer'] == 'adam':
             optimizer = tf.train.AdamOptimizer(learning_rate=params['learning_rate'], beta1=0.9, beta2=0.999, epsilon=1e-8)
@@ -88,8 +93,10 @@ def deepfm_model_fn(features, labels, mode, params):
         return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)
 
     if mode == tf.estimator.ModeKeys.EVAL:
+        print('labels reshape acc:{0} '.format(labels))
         accuracy = tf.metrics.accuracy(labels, predictions)
         auc = tf.metrics.auc(labels, predictions)
+        print('labels reshape auc:{0} '.format(labels))
         my_metrics = {
             'accuracy': tf.metrics.accuracy(labels, predictions),
             'auc':      tf.metrics.auc(labels,predictions)

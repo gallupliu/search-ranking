@@ -81,31 +81,42 @@ def census_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_size):
     # test_row.append(hsy_data["type"][i])
     # test_row.append([0.1, 0.0, 0.2, 0.4, 0.5])
     # test_row.append(hsy_data["label"][i])
+
+# StructField("id", IntegerType()), StructField("keyword", StringType()),
+#           StructField("title", StringType()), StructField("brand", StringType()),
+#           StructField("tag", StringType()),
+#           StructField("volume", FloatType()),
+#           StructField("type", IntegerType()),
+#           StructField("user_bert_emb", ArrayType(DoubleType(), True)),
+#           StructField("item_bert_emb", ArrayType(DoubleType(), True)),
+#           StructField("label", IntegerType())
 def hys_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_size):
     def _parse_census_TFRecords_fn(record):
         features = {
-
+            # int
+            "id": tf.io.FixedLenFeature([], tf.int64),
             # string
             "keyword": tf.io.FixedLenFeature([], tf.string),
             "title": tf.io.FixedLenFeature([], tf.string),
             "brand": tf.io.FixedLenFeature([], tf.string),
             "tag": tf.io.FixedLenFeature([], tf.string),
-            # 'text': tf.io.FixedLenSequenceFeature([], tf.string, allow_missing=True, default_value='0'),
-            # int
-            "id": tf.io.FixedLenFeature([], tf.int64),
-            "volume": tf.io.FixedLenFeature([], tf.int64),
-            "type": tf.io.FixedLenFeature([], tf.int64),
+            "type": tf.io.FixedLenFeature([], tf.string),
+
+            "volume": tf.io.FixedLenFeature([], tf.float32),
+
             'user_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # query向量
             'item_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # item向量
-            "label": tf.io.FixedLenFeature([], tf.int64),
+            "label": tf.io.FixedLenFeature([], tf.float32),
 
         }
         features = tf.io.parse_single_example(record, features)
         labels = features.pop('label')
         return features, labels
 
-    assert tf.io.gfile.exists(data_file), ('no file named: ' + str(data_file))
-    dataset = tf.data.TFRecordDataset(data_file).map(_parse_census_TFRecords_fn, num_parallel_calls=10)
+    # tf.compat.v1.gfile.Glob(path2)
+    print(tf.io.gfile.listdir)
+    # assert tf.io.gfile.exists(tf.io.gfile.glob(data_file)), ('no file named: ' + str(data_file))
+    dataset = tf.data.TFRecordDataset(tf.io.gfile.glob(data_file)).map(_parse_census_TFRecords_fn, num_parallel_calls=10)
     if shuffle:
         dataset = dataset.shuffle(buffer_size=5000)
     dataset = dataset.repeat(num_epochs)
@@ -318,6 +329,10 @@ def train_hys_data(ARGS):
     ARGS['deep_fields_size'] = feat_columns['deep_fields_size']
     ARGS['wide_columns'] = feat_columns['deep_columns']
     ARGS['wide_fields_size'] = feat_columns['wide_fields_size']
+    ARGS['emb_columns'] = feat_columns['emb_columns']
+    ARGS['emb_fields_size'] = feat_columns['text_fields_size']
+    ARGS['text_columns'] = feat_columns['text_columns']
+    ARGS['text_fields_size'] = feat_columns['emb_fields_size']
     ARGS['model_fn_map'] = MODEL_FN_MAP
     print('this process will train a: ' + ARGS['model_name'] + ' model...')
     print('args:{0}'.format(ARGS))

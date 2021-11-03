@@ -1,22 +1,21 @@
 from pyspark.sql.types import *
 from pyspark import SparkConf, SparkContext
+import tensorflow as tf
+import numpy as np
+
 from utils.utils import CreateSparkContex
 
 path = "test-output.tfrecord"
 
 # label	keyword	title	brand	tag	volume	type
-# fields = [StructField("id", IntegerType()), StructField("IntegerCol", IntegerType()),
-#           StructField("LongCol", LongType()), StructField("FloatCol", FloatType()),
-#           StructField("DoubleCol", DoubleType()), StructField("VectorCol", ArrayType(DoubleType(), True)),
-#           StructField("StringCol", StringType())]
-# test_rows = [[11, 1, 23, 10.0, 14.0, [1.0, 2.0], "r1"], [21, 2, 24, 12.0, 15.0, [2.0, 2.0], "r2"]]
+
 fields = [StructField("id", IntegerType()), StructField("keyword", StringType()),
           StructField("title", StringType()), StructField("brand", StringType()),
           StructField("tag", StringType()),
           StructField("volume", FloatType()),
-          StructField("type", IntegerType()),
-          StructField("user_bert_emb", ArrayType(DoubleType(), True)),
-          StructField("item_bert_emb", ArrayType(DoubleType(), True)),
+          StructField("type", StringType()),
+          StructField("user_bert_emb", ArrayType(FloatType(), True)),
+          StructField("item_bert_emb", ArrayType(FloatType(), True)),
           StructField("label", IntegerType())]
 schema = StructType(fields)
 hsy_data = {
@@ -36,6 +35,9 @@ hsy_data = {
     #                     "1: 0.4074,177: 0.1217,502: 0.4826"]
 
 }
+# hsy_data['user_bert_emb'] = hsy_data.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
+# hsy_data['item_bert_emb'] = hsy_data.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
+# print(hsy_data['item_bert_emb'])
 test_rows = []
 for i in range(len(hsy_data["label"])):
     test_row = []
@@ -46,8 +48,8 @@ for i in range(len(hsy_data["label"])):
     test_row.append(hsy_data["tag"][i])
     test_row.append(float(hsy_data["volume"][i]))
     test_row.append(hsy_data["type"][i])
-    test_row.append([0.0, 0.1, 0.5, 0.1, 0.5])
-    test_row.append([0.1, 0.0, 0.2, 0.4, 0.5])
+    test_row.append(np.random.uniform(low=-0.1, high=0.1, size=10).tolist())
+    test_row.append(np.random.uniform(low=-0.1, high=0.1, size=10).tolist())
     test_row.append(hsy_data["label"][i])
     test_rows.append(test_row)
 
@@ -59,5 +61,34 @@ rdd = spark.sparkContext.parallelize(test_rows)
 
 df = spark.createDataFrame(rdd, schema)
 df.show()
+# df.write.mode(SaveMode.Overwrite).partitionBy("partitionColumn").format("tfrecord").option("recordType", "Example").save(output_dir)
 df.write.mode("overwrite").format("tfrecord").option("recordType", "Example").save(path)
-df = spark.read.format("tfrecord").option("recordType", "Example").load(path)
+
+path2 = "test-output.tfrecord/*.tfrecord"
+dataset=tf.data.TFRecordDataset(tf.compat.v1.gfile.Glob(path2))
+
+def parse_func(buff):
+    features = {
+        # int
+        "id": tf.io.FixedLenFeature([], tf.int64),
+        # string
+        "keyword": tf.io.FixedLenFeature([], tf.string),
+        "title": tf.io.FixedLenFeature([], tf.string),
+        "brand": tf.io.FixedLenFeature([], tf.string),
+        "tag": tf.io.FixedLenFeature([], tf.string),
+        "type": tf.io.FixedLenFeature([], tf.string),
+
+        "volume": tf.io.FixedLenFeature([], tf.float32),
+
+        'user_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # query向量
+        'item_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # item向量
+        "label": tf.io.FixedLenFeature([], tf.int64),
+
+    }
+    features = tf.io.parse_single_example(buff, features)
+    labels = features.pop('label')
+    labels = tf.compat.v1.to_float(labels)
+    return features, labels
+
+train_dataset = dataset.map(parse_func).batch(1)
+print(train_dataset )

@@ -89,15 +89,39 @@ def build_hys_feat_columns(emb_dim=8):
         feat_field_size = len(feature_columns)
         return feature_columns, feat_field_size
 
+    def _build_hys_text_columns(numeric_range=None):
+        feature_columns = []
+        for col in HYS_CONFIG['text_cols']:
+            text_column = fc.categorical_column_with_vocabulary_file(
+                key=col,
+                vocabulary_file='./ids.txt',
+                num_oov_buckets=0)
+            feature_columns.append(fc.embedding_column(text_column, 10))
+        feat_field_size = len(feature_columns)
+        return feature_columns, feat_field_size
+
+    def _build_hys_emb_columns(numeric_range=None):
+        feature_columns = []
+        for col in HYS_CONFIG['emb_cols']:
+            feature_columns.append(fc.numeric_column(key=col, shape=(10,), default_value=[0.0] * 10, dtype=tf.float32))
+        feat_field_size = len(feature_columns)
+        return feature_columns, feat_field_size
+
     numeric_range = _get_numeric_feat_range()
     deep_columns, deep_fields_size = _build_hys_deep_columns(emb_dim, numeric_range)
     wide_columns, wide_fields_size = _build_hys_wide_columns(numeric_range)
+    emb_columns, emb_fields_size = _build_hys_emb_columns(numeric_range)
+    text_columns, text_fields_size = _build_hys_text_columns(numeric_range)
     feat_config = {
         'deep_columns': deep_columns,
         'deep_fields_size': deep_fields_size,
         'wide_columns': wide_columns,
         'wide_fields_size': wide_fields_size,
         'embedding_dim': emb_dim,
+        'emb_columns': emb_columns,
+        'emb_fields_size': emb_fields_size,
+        'text_columns': text_columns,
+        'text_fields_size': text_fields_size
     }
     return feat_config
 
