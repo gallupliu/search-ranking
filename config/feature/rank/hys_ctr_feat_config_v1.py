@@ -6,9 +6,9 @@ import tensorflow.feature_column as fc
 
 HYS_CONFIG = {
 # label
-    'columns': ['id','keyword', 'title', 'brand', 'tag', 'volume', 'type', 'user_bert_emb','item_bert_emb',
+    'columns': ['id','keyword', 'title', 'brand', 'tag', 'volume', 'type', 'price','user_bert_emb','item_bert_emb',
                 'label'],
-    'columns_defaults': [[-1], [''], [''],  [''], [''],  [0.0], [-1], [-1],
+    'columns_defaults': [[-1], [''], [''],  [''], [''],  [''], [0.0],[-1], [-1],
                          [-1]],
     'vocab_size': {
         'type': 3,
@@ -16,9 +16,9 @@ HYS_CONFIG = {
     },
     'vocab_file': './char.txt',
     'deep_emb_cols': [ 'type'],
-    'deep_bucket_emb_cols': ['volume',],
+    'deep_bucket_emb_cols': ['volume','price'],
     'wide_muti_hot_cols': ['type'],
-    'wide_bucket_cols': ['volume'],
+    'wide_bucket_cols': ['volume','price'],
     'wide_cross_cols': [('type', 'volume'),],
     'text_cols': ['keyword', 'title', 'brand', 'tag'],
     'emb_cols': ['user_bert_emb','item_bert_emb'],
@@ -37,8 +37,27 @@ def build_hys_feat_columns(emb_dim=8):
         # train['bert_emb'] = train.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
         # test['bert_emb'] = test.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
         # total = pd.concat([train, test], axis=0)
-        total = pd.read_csv('./hys_df_test.csv', header=None, names=HYS_CONFIG['columns'])[
-            HYS_CONFIG['deep_bucket_emb_cols']]
+        # total = pd.read_csv('./hys_df_test.csv', header=None, names=HYS_CONFIG['columns'])[
+        #     HYS_CONFIG['deep_bucket_emb_cols']]
+        hsy_data = {
+            "label": [0, 1, 0, 1, 1, 0, 1, 1, 0, 0],
+            "keyword": ["安 慕 希", "牛 奶", "牛", "奶 粉", "婴 儿 奶 粉", "液 态 奶", "牛 肉", "奶", "牛 肉 干", "牛 奶 口 味"],
+            "title": ["安 慕 希", "牛 奶", "牛", "奶 粉", "婴 儿 奶 粉", "液 态 奶", "牛 肉", "奶", "牛 肉 干", "牛 奶 口 味"],
+            "brand": ["安 慕 希", "伊 利", "蒙 牛", "奶 粉", "婴 儿 奶 粉", "液 态 奶", "牛 肉", "奶", "牛 肉 干", "牛 奶 口 味"],
+            "tag": ["酸 奶", "纯 牛 奶", "牛", "固 态 奶", "婴 儿 奶 粉", "液 态 奶", "牛 肉", "奶", "牛 肉 干", "牛 奶 口 味"],
+            "volume": [1, 2, 3, 4, 5, 4.3, 1.2, 4.5, 1.0, 0.8],
+            "type": [0, 1, 0, 1, 2, 1, 0, 0, 2, 1],
+            "price": [10, 51, 20, 31, 42, 19, 30, 20, 21, 1],
+            # "spu_id": [39877457, 39877710, 39878084, 39878084, 39878084, 39877710, 39878084, 39877710, 39878084, 39878084],
+            # "all_topic_fav_7": ["1: 0.4074,177: 0.1217,502: 0.4826", "1: 0.4074,177: 0.1217,502: 0.4826",
+            #                     "1: 0.4074,177: 0.1217,502: 0.4826", "1: 0.4074,177: 0.1217,502: 0.4826",
+            #                     "1: 0.4074,177: 0.1217,502: 0.4826", "1: 0.4074,177: 0.1217,502: 0.4826",
+            #                     "1: 0.4074,177: 0.1217,502: 0.4826",
+            #                     "1: 0.4074,177: 0.1217,502: 0.4826", "1: 0.4074,177: 0.1217,502: 0.4826",
+            #                     "1: 0.4074,177: 0.1217,502: 0.4826"]
+
+        }
+        total = pd.DataFrame(hsy_data)
         numeric_range = {}
         for col in HYS_CONFIG['deep_bucket_emb_cols']:
             numeric_range[col] = (total[col].min(), total[col].max())
@@ -57,14 +76,14 @@ def build_hys_feat_columns(emb_dim=8):
                 fc.embedding_column(fc.bucketized_column(fc.numeric_column(col), boundaries=list(
                     np.linspace(numeric_range[col][0], numeric_range[col][1], 1000))), dimension=emb_dim)
             )
-        for col in HYS_CONFIG['text_cols']:
-            text_column = fc.categorical_column_with_vocabulary_file(
-                key=col,
-                vocabulary_file='./char.txt',
-                num_oov_buckets=0)
-            feature_columns.append(fc.embedding_column(text_column, 10))
-        for col in HYS_CONFIG['emb_cols']:
-            fc.numeric_column(key=col, shape=(10,), default_value=[0.0] * 10, dtype=tf.float32)
+        # for col in HYS_CONFIG['text_cols']:
+        #     text_column = fc.categorical_column_with_vocabulary_file(
+        #         key=col,
+        #         vocabulary_file='./char.txt',
+        #         num_oov_buckets=0)
+        #     feature_columns.append(fc.embedding_column(text_column, 10))
+        # for col in HYS_CONFIG['emb_cols']:
+        #     fc.numeric_column(key=col, shape=(10,), default_value=[0.0] * 10, dtype=tf.float32)
 
         feat_field_size = len(feature_columns)
         return feature_columns, feat_field_size

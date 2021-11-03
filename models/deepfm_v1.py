@@ -33,7 +33,7 @@ def deepfm_model_fn(features, labels, mode, params):
     with tf.name_scope('text'):
         text_input_layer = tf.feature_column.input_layer(features=features, feature_columns=text_columns)
         print('text_input_layer:{0}'.format(text_input_layer))
-        text_feat = tf.reshape(deep_input_layer, [-1, 2, 10])
+        text_feat = tf.reshape(text_input_layer, [-1, 2, 10])
         print('text_feat:{0}'.format(text_feat))
         text_output_layer = tf.layers.dense(inputs=text_input_layer, units=1, activation=None, use_bias=True)
         print('text_output_layer:{0}'.format(text_output_layer))
@@ -41,11 +41,11 @@ def deepfm_model_fn(features, labels, mode, params):
     with tf.name_scope('wide'):
         wide_input_layer = tf.feature_column.input_layer(features=features, feature_columns=wide_columns)
         print('wide_input_layer:{0}'.format(wide_input_layer))
-        wide_output_layer = tf.layers.dense(inputs=wide_input_layer, units=1, activation=None, use_bias=True)
+        wide_output_layer = tf.compat.v1.layers.dense(inputs=wide_input_layer, units=1, activation=None, use_bias=True)
         print('wide_output_layer:{0}'.format(wide_output_layer))
 
     with tf.name_scope('deep'):
-        d_layer_1 = tf.layers.dense(inputs=deep_input_layer, units=50, activation=tf.nn.relu, use_bias=True)
+        d_layer_1 = tf.compat.v1.layers.dense(inputs=deep_input_layer, units=50, activation=tf.nn.relu, use_bias=True)
         bn_layer_1 = tf.layers.batch_normalization(inputs=d_layer_1, axis=-1, momentum=0.99, epsilon=0.001, center=True, scale=True)
         deep_output_layer = tf.layers.dense(inputs=bn_layer_1, units=40, activation=tf.nn.relu, use_bias=True)
         print('deep_output_layer:{0}'.format(deep_output_layer))
