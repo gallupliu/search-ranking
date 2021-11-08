@@ -69,10 +69,13 @@ def build_census_feat_columns(emb_dim=8):
     def _build_census_text_columns(numeric_range=None):
         feature_columns = []
         for col in CENSUS_CONFIG['text_cols']:
-            text_column = fc.categorical_column_with_vocabulary_file(
-                key=col,
-                vocabulary_file='./ids.txt',
-                num_oov_buckets=0)
+            # text_column = fc.categorical_column_with_vocabulary_file(
+            #     key=col,
+            #     vocabulary_file='./ids.txt',
+            #     num_oov_buckets=0)
+            text_column = fc.sequence_categorical_column_with_vocabulary_file(
+                key=col, vocabulary_file='./ids.txt',
+                num_oov_buckets=5)
             feature_columns.append(fc.embedding_column(text_column, 10))
         feat_field_size = len(feature_columns)
         return feature_columns, feat_field_size

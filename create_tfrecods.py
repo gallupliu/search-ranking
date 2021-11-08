@@ -1,11 +1,33 @@
 from pyspark.sql.types import *
 from pyspark import SparkConf, SparkContext
+from pyspark.sql.functions import col, lit, split, udf, concat,concat_ws
+from pyspark.sql.types import ArrayType, DoubleType, FloatType, StringType, IntegerType
 import tensorflow as tf
 import numpy as np
 
 from utils.utils import CreateSparkContex
 
 path = "test-output.tfrecord"
+
+
+def padding_text(df, column, length):
+    def pad(column, length):
+        if column is None:
+            return length * ['pad']
+        else:
+            text_len = len(column)
+            if text_len < length:
+                return column + ['pad'] * (length - text_len)
+            elif text_len > length:
+                return column[:length]
+            else:
+                return column
+
+    pad_udf = udf(pad, ArrayType(StringType()))
+    df = df.withColumn('length', lit(length))
+    df = df.withColumn(column, pad_udf(column, 'length')).drop('length')
+    return df
+
 
 # label	keyword	title	brand	tag	volume	type
 
@@ -28,7 +50,7 @@ hsy_data = {
     "volume": [1, 2, 3, 4, 5, 4.3, 1.2, 4.5, 1.0, 0.8],
     "type": [0, 1, 0, 1, 2, 1, 0, 0, 2, 1],
     "price": [10.0, 51.0, 20.0, 31.0, 42.0, 19.0, 30.0, 20.0, 21.0, 1.2],
-    # "spu_id": [39877457, 39877710, 39878084, 39878084, 39878084, 39877710, 39878084, 39877710, 39878084, 39878084],
+    "id": [39877457, 39877710, 39878084, 39878084, 39878084, 39877710, 39878084, 39877710, 39878084, 39878084],
     # "all_topic_fav_7": ["1: 0.4074,177: 0.1217,502: 0.4826", "1: 0.4074,177: 0.1217,502: 0.4826",
     #                     "1: 0.4074,177: 0.1217,502: 0.4826", "1: 0.4074,177: 0.1217,502: 0.4826",
     #                     "1: 0.4074,177: 0.1217,502: 0.4826", "1: 0.4074,177: 0.1217,502: 0.4826",
@@ -43,7 +65,7 @@ hsy_data = {
 test_rows = []
 for i in range(len(hsy_data["label"])):
     test_row = []
-    test_row.append(i)
+    test_row.append(hsy_data["id"][i])
     test_row.append(hsy_data["keyword"][i])
     test_row.append(hsy_data["title"][i])
     test_row.append(hsy_data["brand"][i])
@@ -64,6 +86,17 @@ rdd = spark.sparkContext.parallelize(test_rows)
 
 df = spark.createDataFrame(rdd, schema)
 df.show()
+
+df = df.withColumn('text',concat_ws(' ',col("keyword"),col("title"),col("brand"),col("tag")))
+df.printSchema()
+# split and pad
+# for column in ["keyword", "title", "brand", "tag"]:
+#     df = df.withColumn(column,split(col(column),' '))
+#     df = padding_text(df, column, 5)
+df = df.withColumn('text',split(col('text'),' '))
+df = padding_text(df, 'text', 20).drop(*["keyword", "title", "brand", "tag"])
+df.show()
+df.printSchema()
 # df.write.mode(SaveMode.Overwrite).partitionBy("partitionColumn").format("tfrecord").option("recordType", "Example").save(output_dir)
 df.write.mode("overwrite").format("tfrecord").option("recordType", "Example").save(path)
 
@@ -76,10 +109,11 @@ def parse_func(buff):
         # int
         "id": tf.io.FixedLenFeature([], tf.int64),
         # string
-        "keyword": tf.io.FixedLenFeature([], tf.string),
-        "title": tf.io.FixedLenFeature([], tf.string),
-        "brand": tf.io.FixedLenFeature([], tf.string),
-        "tag": tf.io.FixedLenFeature([], tf.string),
+        # "keyword": tf.io.FixedLenFeature([5], tf.string),
+        # "title": tf.io.FixedLenFeature([5], tf.string),
+        # "brand": tf.io.FixedLenFeature([5], tf.string),
+        # "tag": tf.io.FixedLenFeature([5], tf.string),
+        "text": tf.io.FixedLenFeature([20], tf.string),
         "type": tf.io.FixedLenFeature([], tf.string),
 
         "volume": tf.io.FixedLenFeature([], tf.float32),

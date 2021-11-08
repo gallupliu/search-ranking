@@ -20,7 +20,7 @@ HYS_CONFIG = {
     'wide_muti_hot_cols': ['type'],
     'wide_bucket_cols': ['volume','price'],
     'wide_cross_cols': [('type', 'volume'),],
-    'text_cols': ['keyword', 'title', 'brand', 'tag'],
+    'text_cols': ['text'],
     'emb_cols': ['user_bert_emb','item_bert_emb'],
 }
 
@@ -111,11 +111,14 @@ def build_hys_feat_columns(emb_dim=8):
     def _build_hys_text_columns(numeric_range=None):
         feature_columns = []
         for col in HYS_CONFIG['text_cols']:
-            text_column = fc.categorical_column_with_vocabulary_file(
-                key=col,
-                vocabulary_file='./ids.txt',
-                num_oov_buckets=0)
-            feature_columns.append(fc.embedding_column(text_column, 10))
+            # text_column = fc.categorical_column_with_vocabulary_file(
+            #     key=col,
+            #     vocabulary_file='./ids.txt',
+            #     num_oov_buckets=0)
+            text_column = fc.sequence_categorical_column_with_vocabulary_file(
+                key=col, vocabulary_file='./char.txt',
+                num_oov_buckets=5)
+            feature_columns.append(fc.embedding_column(text_column, 30))
         feat_field_size = len(feature_columns)
         return feature_columns, feat_field_size
 

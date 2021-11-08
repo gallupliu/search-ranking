@@ -80,10 +80,11 @@ def hys_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_size):
             # int
             "id": tf.io.FixedLenFeature([], tf.int64),
             # string
-            "keyword": tf.io.FixedLenFeature([], tf.string),
-            "title": tf.io.FixedLenFeature([], tf.string),
-            "brand": tf.io.FixedLenFeature([], tf.string),
-            "tag": tf.io.FixedLenFeature([], tf.string),
+            # "keyword": tf.io.FixedLenFeature([5], tf.string),
+            # "title": tf.io.FixedLenFeature([5], tf.string),
+            # "brand": tf.io.FixedLenFeature([5], tf.string),
+            # "tag": tf.io.FixedLenFeature([5], tf.string),
+            "text": tf.io.FixedLenFeature([20], tf.string),
             "type": tf.io.FixedLenFeature([], tf.string),
 
             "volume": tf.io.FixedLenFeature([], tf.float32),

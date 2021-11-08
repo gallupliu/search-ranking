@@ -9,13 +9,24 @@ shuffle: True
 model_name: deepfm
 optimizer: adam
 train_epoches_num: 1
-batch_size: 16
+batch_size: 8
 epoches_per_eval: 2
 learning_rate: 0.01
 deep_layer_nerouns:
   - 256
   - 128
   - 64
+
+module: cnn
+# TextCNN parameters
+num_filters: 128
+filter_sizes:
+  - 2
+  - 3
+  - 5
+embedding_size: 30
+keep_prob: 0.5
+sequence_length: 20
 #ckpt_dir: CENSUS_PATH + ckpt_dir/
 #embedding_dim: feat_columns[embedding_dim]
 #deep_columns: feat_columns[deep_columns]
