@@ -52,33 +52,21 @@ def build_census_feat_columns(emb_dim=8):
             numeric_range[col] = (total[col].min(), total[col].max())
         return numeric_range
 
-    def _build_census_deep_columns(emb_dim=8, numeric_range=None):
-        feature_columns = []
-        for col in CENSUS_CONFIG['deep_emb_cols']:
-            feature_columns.append(
-                fc.embedding_column(fc.categorical_column_with_hash_bucket(col, hash_bucket_size=10 if
-                CENSUS_CONFIG['vocab_size'][col] <= 100 else CENSUS_CONFIG['vocab_size'][col] + 100),
-                                    dimension=emb_dim)
-            )
-        for col in CENSUS_CONFIG['deep_bucket_emb_cols']:
-            feature_columns.append(
-                fc.embedding_column(fc.bucketized_column(fc.numeric_column(col), boundaries=list(
-                    np.linspace(numeric_range[col][0], numeric_range[col][1], 100))), dimension=emb_dim)
-            )
-
-        feat_field_size = len(feature_columns)
-        return feature_columns, feat_field_size
 
     def _build_census_user_columns(numeric_range=None):
         feature_columns = []
 
         for col in CENSUS_CONFIG['user']:
             if col in CENSUS_CONFIG['text_cols']:
-                text_column = fc.categorical_column_with_vocabulary_file(
-                    key=col,
-                    vocabulary_file='./ids.txt',
-                    num_oov_buckets=0)
-                feature_columns.append(fc.embedding_column(text_column, 10))
+                # text_column = fc.categorical_column_with_vocabulary_file(
+                #     key=col,
+                #     vocabulary_file='./ids.txt',
+                #     num_oov_buckets=0)
+                text_column = fc.sequence_categorical_column_with_vocabulary_file(
+                    key=col, vocabulary_file='./char.txt',
+                    num_oov_buckets=5)
+                # feature_columns.append(fc.embedding_column(text_column, 10))
+                feature_columns.append(fc.shared_embeddings(text_column, 10))
 
             if col in CENSUS_CONFIG['emb_cols']:
                 feature_columns.append(
@@ -102,12 +90,15 @@ def build_census_feat_columns(emb_dim=8):
     def _build_census_item_columns(numeric_range=None):
         feature_columns = []
 
-        for col in CENSUS_CONFIG['user']:
+        for col in CENSUS_CONFIG['item']:
             if col in CENSUS_CONFIG['text_cols']:
-                text_column = fc.categorical_column_with_vocabulary_file(
-                    key=col,
-                    vocabulary_file='./ids.txt',
-                    num_oov_buckets=0)
+                # text_column = fc.categorical_column_with_vocabulary_file(
+                #     key=col,
+                #     vocabulary_file='./ids.txt',
+                #     num_oov_buckets=0)
+                text_column = fc.sequence_categorical_column_with_vocabulary_file(
+                    key=col, vocabulary_file='./char.txt',
+                    num_oov_buckets=5)
                 feature_columns.append(fc.embedding_column(text_column, 10))
 
             if col in CENSUS_CONFIG['emb_cols']:
@@ -128,44 +119,13 @@ def build_census_feat_columns(emb_dim=8):
         feat_field_size = len(feature_columns)
         return feature_columns, feat_field_size
 
-    def _build_census_wide_columns(numeric_range=None):
-        base_columns, cross_columns = [], []
-        for col in CENSUS_CONFIG['wide_muti_hot_cols']:
-            base_columns.append(
-                fc.indicator_column(fc.categorical_column_with_hash_bucket(col, hash_bucket_size=10 if
-                CENSUS_CONFIG['vocab_size'][col] <= 100 else CENSUS_CONFIG['vocab_size'][col] + 100))
-            )
-        for col in CENSUS_CONFIG['wide_bucket_cols']:
-            base_columns.append(
-                fc.bucketized_column(fc.numeric_column(col),
-                                     boundaries=list(np.linspace(numeric_range[col][0], numeric_range[col][1], 100)))
-            )
-        for col in CENSUS_CONFIG['wide_cross_cols']:
-            cross_columns.append(
-                fc.indicator_column(fc.crossed_column([col[0], col[1]], hash_bucket_size=10))
-            )
-        feature_columns = base_columns + cross_columns
-        feat_field_size = len(feature_columns)
-        return feature_columns, feat_field_size
 
     numeric_range = _get_numeric_feat_range()
-    # deep_columns, deep_fields_size = _build_census_deep_columns(emb_dim, numeric_range)
-    # wide_columns, wide_fields_size = _build_census_wide_columns(numeric_range)
-    # emb_columns, emb_fields_size = _build_census_emb_columns(numeric_range)
-    # text_columns, text_fields_size = _build_census_text_columns(numeric_range)
     user_columns, user_fields_size = _build_census_user_columns(numeric_range)
-    item_columns, item_fields_size = _build_census_user_columns(numeric_range)
+    item_columns, item_fields_size = _build_census_item_columns(numeric_range)
 
     feat_config = {
-        # 'deep_columns': deep_columns,
-        # 'deep_fields_size': deep_fields_size,
-        # 'wide_columns': wide_columns,
-        # 'wide_fields_size': wide_fields_size,
-        # 'embedding_dim': emb_dim,
-        # 'emb_columns': emb_columns,
-        # 'emb_fields_size': emb_fields_size,
-        # 'text_columns': text_columns,
-        # 'text_fields_size': text_fields_size
+
         'user_columns': user_columns,
         'user_fields_size': user_fields_size,
         'item_columns': item_columns,

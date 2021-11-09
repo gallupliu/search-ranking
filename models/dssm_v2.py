@@ -106,13 +106,20 @@ def dssm_model_fn(features, labels, mode, params):
 
     with tf.name_scope('user'):
         print('emb_columns:{0}'.format(user_columns))
-        user_input_layer = tf.feature_column.input_layer(features=features, feature_columns=user_columns)
+        # user_input_layer = tf.feature_column.input_layer(features=features, feature_columns=user_columns)
+        user_feature_layer = tf.keras.experimental.SequenceFeatures(user_columns)
+        user_input_layer, sequence_length = user_feature_layer(features)
+        sequence_length_mask = tf.sequence_mask(sequence_length)
+
         print('user_input_layer:{0}'.format(user_input_layer))
         # user_output_layer = tf.layers.dense(inputs=user_input_layer, units=1, activation=None, use_bias=True)
         # print('emb_output_layer:{0}'.format(user_output_layer))
 
     with tf.name_scope('item'):
-        item_input_layer = tf.feature_column.input_layer(features=features, feature_columns=item_columns)
+        # item_input_layer = tf.feature_column.input_layer(features=features, feature_columns=item_columns)
+        item_feature_layer = tf.keras.experimental.SequenceFeatures(user_columns)
+        item_input_layer, sequence_length = item_feature_layer(features)
+        sequence_length_mask = tf.sequence_mask(sequence_length)
         print('item_input_layer:{0}'.format(item_input_layer))
         # item_output_layer = tf.layers.dense(inputs=item_input_layer, units=1, activation=None, use_bias=True)
         # print('text_output_layer:{0}'.format(item_output_layer))
