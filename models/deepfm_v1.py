@@ -41,7 +41,7 @@ def deepfm_model_fn(features, labels, mode, params):
                                                                                              sequence_length_mask))
             if params['module'] == 'cnn':
                 pooled_outputs = []
-                text_feat = tf.reshape(text_input_layer, [-1, 20, 30])
+                text_feat = tf.reshape(text_input_layer, [-1, params['sequence_length'], params['embedding_size']])
                 print('text_feat:{0}'.format(text_feat))
                 text_feat = tf.expand_dims(text_feat, -1)
                 with tf.name_scope("TextCNN"):
