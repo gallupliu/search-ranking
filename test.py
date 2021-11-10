@@ -270,7 +270,7 @@ def test_embedding():
         print('embeding' + '_' * 40)
         print(session.run([color_embeding_dense_tensor]))
 
-test_embedding()
+# test_embedding()
 
 def test_data():
     hsy_data = {
@@ -303,9 +303,9 @@ def test_vocab():
         print(session.run([tensor]))
         print(session.run([indicator]))
 
-import requests
-import tensorflow as tf
-import tensorflow_text as tf_text
+# import requests
+# import tensorflow as tf
+# import tensorflow_text as tf_text
 
 def input_fn():
     # Create a lookup table for a vocabulary
@@ -500,3 +500,118 @@ embedding_initializer = None
 #
 # lookup_demo()
 
+import tensorflow as tf
+from tensorflow.python.feature_column import feature_column_lib
+#
+# def categorical_list_column():
+#     column = tf.feature_column.categorical_column_with_vocabulary_list(
+#         # 特征列的名称
+#         key="feature",
+#         # 有效取值列表，列表的下标对应转换的数值。即，value1会被映射为0
+#         vocabulary_list=["value1", "value2", "value3"],
+#         # 取值的类型，只支持string和integer，这个会根据vocabulary_list自动推断出来
+#         dtype=tf.string,
+#         # 当取值不在vocabulary_list中时，会被映射的数值，默认为-1
+#         # 当该值不为-1时，num_oov_buckets必须设置为0。即两者不能同时起作用
+#         default_value=-1,
+#         # 作用同default_value，但是两者不能同时起作用。
+#         # 将超出的取值映射到[len(vocabulary), len(vocabulary) + num_oov_buckets)内
+#         # 默认取值为0
+#         # 当该值不为0时，default_value必须设置为-1
+#         # 当default_value和num_oov_buckets都取默认值时，会被映射为-1
+#         num_oov_buckets=3)
+#     feature_cache = feature_column_lib.FeatureTransformationCache(features={
+#         # feature对应的值可以为Tensor，也可以为SparseTensor
+#         "feature": tf.constant(value=[
+#             [["value1", "value2"], ["value3", "value3"]],
+#             [["value3", "value5"], ["value4", "value4"]]
+#         ])
+#     })
+#     print(tf.feature_column.embedding_column(column,dimension=10))
+#     # IdWeightPair(id_tensor, weight_tensor)
+#     return column.get_sparse_tensors(transformation_cache=feature_cache, state_manager=None)
+#
+# def sequence_categorical_list_column():
+#     # 用法同categorical_column_with_vocabulary_list完全一致
+#     column = tf.feature_column.sequence_categorical_column_with_vocabulary_list(
+#         key="feature",
+#         vocabulary_list=["value1", "value2", "value3"],
+#         dtype=tf.string,
+#         default_value=-1,
+#         num_oov_buckets=2)
+#     feature_cache = feature_column_lib.FeatureTransformationCache(features={
+#         "feature": tf.constant(value=[
+#             ["value1", "value2", "value3", "value3"],
+#             ["value3", "value5", "value4", "value4"]
+#         ])
+#     })
+#     print(tf.feature_column.embedding_column(column,dimension=10))
+#     # IdWeightPair(id_tensor, weight_tensor)
+#     return column.get_sparse_tensors(transformation_cache=feature_cache, state_manager=None)
+#
+# print(categorical_list_column())
+# print(sequence_categorical_list_column())
+
+import tensorflow as tf
+from tensorflow import feature_column
+from tensorflow.python.feature_column.feature_column import _LazyBuilder
+
+def test_categorical_column_with_vocabulary_list():
+    color_data = {'color': [['R', 'R'], ['G', 'R'], ['B', 'G'], ['A', 'A']]}  # 4行样本
+    builder = _LazyBuilder(color_data)
+    color_column = feature_column.categorical_column_with_vocabulary_list(
+        'color', ['R', 'G', 'B'], dtype=tf.string, default_value=-1
+    )
+
+    # color_column_tensor = color_column._get_sparse_tensors(builder)
+    # with tf.Session() as session:
+    #     session.run(tf.global_variables_initializer())
+    #     session.run(tf.tables_initializer())
+    #     print(session.run([color_column_tensor.id_tensor]))
+
+    # 将稀疏的转换成dense，也就是one-hot形式，只是multi-hot
+    color_column_identy = feature_column.indicator_column(color_column)
+    color_dense_tensor = feature_column.input_layer(color_data, [color_column_identy])
+    color_emb = tf.feature_column.embedding_column(color_column, dimension=10)
+    with tf.Session() as session:
+        session.run(tf.global_variables_initializer())
+        session.run(tf.tables_initializer())
+        # print('use input_layer' + '_' * 40)
+        # print(session.run([color_dense_tensor]))
+        print(session.run(color_emb))
+
+test_categorical_column_with_vocabulary_list()
+
+
+def test_sequence_categorical_column_with_vocabulary_list():
+    color_data = {'color': [['R', 'R'], ['G', 'R'], ['B', 'G'], ['A', 'A']]}  # 4行样本
+    builder = _LazyBuilder(color_data)
+    # color_column = feature_column.categorical_column_with_vocabulary_list(
+    #     'color', ['R', 'G', 'B'], dtype=tf.string, default_value=-1
+    # )
+
+    color_column = tf.feature_column.sequence_categorical_column_with_vocabulary_list(
+        key='color',
+        vocabulary_list=['R', 'G', 'B'],
+        dtype=tf.string,
+        default_value=-1,
+        num_oov_buckets=2)
+
+    color_column_tensor = color_column._get_sparse_tensors(builder)
+    # with tf.Session() as session:
+    #     session.run(tf.global_variables_initializer())
+    #     session.run(tf.tables_initializer())
+    #     print(session.run([color_column_tensor.id_tensor]))
+
+    # 将稀疏的转换成dense，也就是one-hot形式，只是multi-hot
+    # color_column_identy = feature_column.indicator_column(color_column)
+    # color_dense_tensor = feature_column.input_layer(color_data, [color_column_identy])
+    color_emb = tf.feature_column.embedding_column(color_column, dimension=10)
+    with tf.Session() as session:
+        session.run(tf.global_variables_initializer())
+        session.run(tf.tables_initializer())
+        print('use input_layer' + '_' * 40)
+        # print(session.run([color_dense_tensor]))
+        print(session.run(color_emb))
+
+test_sequence_categorical_column_with_vocabulary_list()
