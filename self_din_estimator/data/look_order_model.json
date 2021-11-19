@@ -1,0 +1,694 @@
+[
+    {"name":"order_name", "type":"tf.string", "feature_column_function":"categorical_column_with_hash_bucket", "hash_bucket_size":400},
+    {"name": "label","type": "tf.int64", "feature_column_function": ""},
+    {"name": "hist_order_name", "type": "tf.string", "feature_column_function": "seq", "hash_bucket_size": 1000, "base_col": "order_name"},
+
+    {"name":"same_city_look_order_start_city_code", "type":"tf.string", "feature_column_function":"categorical_column_with_hash_bucket", "hash_bucket_size":400},
+
+    {"name":"same_city_look_order_passenger_count", "type":"tf.int64", "feature_column_function":"categorical_column_with_vocabulary_list", "voc_list": [0,1,2,3,4]},
+    {"name":"driver_sex", "type":"tf.int64", "feature_column_function":"categorical_column_with_vocabulary_list", "voc_list": [0,1,2]},
+    {"name":"driver_age", "type":"tf.int64", "feature_column_function":"categorical_column_with_vocabulary_list", "voc_list": [0,1,2,3,4,5,6,7]},
+    {"name":"driver_system_code", "type":"tf.int64", "feature_column_function":"categorical_column_with_vocabulary_list", "voc_list": [0,1,2,3,4,5]},
+    {"name":"driver_license_vehicle_type", "type":"tf.int64", "feature_column_function":"categorical_column_with_vocabulary_list", "voc_list": [0,1,2,3,4,5,6]},
+    {"name":"vehicle_brand_name", "type":"tf.int64", "feature_column_function":"categorical_column_with_vocabulary_list", "voc_list": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21]},
+    {"name":"rating", "type":"tf.int64", "feature_column_function":"categorical_column_with_vocabulary_list", "voc_list": [0,1,2,3]},
+    {"name":"driver_usual_route_lines", "type":"tf.int64", "feature_column_function":"categorical_column_with_vocabulary_list", "voc_list": [0,1,2,3,4,5,6]},
+    {"name":"vehicle_company", "type":"tf.int64", "feature_column_function":"categorical_column_with_vocabulary_list", "voc_list": [0,1,2]},
+    {"name":"vehicle_model_name", "type":"tf.int64", "feature_column_function":"categorical_column_with_vocabulary_list", "voc_list": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28]},
+    {"name":"psg_sex", "type":"tf.int64", "feature_column_function":"categorical_column_with_vocabulary_list", "voc_list": [0,1,2,3]},
+    {"name":"psg_age", "type":"tf.int64", "feature_column_function":"categorical_column_with_vocabulary_list", "voc_list": [0,1,2,3,4,5,6,7]},
+    {"name":"apply_method", "type":"tf.int64", "feature_column_function":"categorical_column_with_vocabulary_list", "voc_list": [0,1,2,3,4,5,6]},
+
+
+    {"name":"same_city_look_order_start_distance", "type":"tf.float64", "feature_column_function":"bucketized_column","bucket_num":100},
+    {"name":"same_city_look_order_price", "type":"tf.float64", "feature_column_function":"bucketized_column","bucket_num":100},
+    {"name":"same_city_look_order_time_diff", "type":"tf.float64", "feature_column_function":"bucketized_column","bucket_num":1000},
+    {"name":"same_city_look_order_psg_distance", "type":"tf.float64", "feature_column_function":"bucketized_column","bucket_num":500},
+    {"name":"same_city_look_order_start_time_diff", "type":"tf.float64", "feature_column_function":"bucketized_column","bucket_num":1000},
+    {"name":"same_city_look_order_end_time_diff", "type":"tf.float64", "feature_column_function":"bucketized_column","bucket_num":1000},
+    {"name":"same_city_look_order_time_diff_length", "type":"tf.float64", "feature_column_function":"bucketized_column","bucket_num":1000},
+    {"name":"same_city_look_order_plog_publish_time_diff", "type":"tf.float64", "feature_column_function":"bucketized_column","bucket_num":1000},
+    {"name":"same_city_look_order_plog_start_time_diff", "type":"tf.float64", "feature_column_function":"bucketized_column","bucket_num":1000},
+    {"name":"same_city_look_order_pstart_publish_time_diff", "type":"tf.float64", "feature_column_function":"bucketized_column","bucket_num":1000},
+    {"name":"same_city_look_order_start_rate_psg", "type":"tf.float64", "feature_column_function":"bucketized_column","bucket_num":1000},
+
+    {"name": "same_city_look_order_price_scale_col","type": "tf.float64", "feature_column_function": "numeric_column"},
+    {"name": "same_city_look_order_start_distance_scale_col", "type": "tf.float64", "feature_column_function": "numeric_column"},
+    {"name": "same_city_look_order_psg_distance_scale_col", "type": "tf.float64", "feature_column_function": "numeric_column"},
+  {
+    "name": "same_city_look_order_time_diff_scale_col",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "same_city_look_order_start_time_diff_scale_col",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "same_city_look_order_end_time_diff_scale_col",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "same_city_look_order_time_diff_length_scale_col",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "same_city_look_order_plog_publish_time_diff_scale_col",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "same_city_look_order_plog_start_time_diff_scale_col",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "same_city_look_order_pstart_publish_time_diff_scale_col",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "same_city_look_order_start_rate_psg_scale_col",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "end_create_time_days",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "create_days",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "reply_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "psg_reply_days",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_finish_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "psg_finish_days",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_cnt_overcity",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_finish_cnt_overcity",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_cnt_city",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_finish_cnt_city",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_sum_thanksfee",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_sum_serviceprice",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_finish_app_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_cnt_7d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_deal_cnt_7d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_cnt_14d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_finish_cnt_14d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_cnt_30d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_deal_cnt_30d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "psg_plan_start_days",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_passenger_coupon_cnt_usable",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_passenger_coupon_cnt_common",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "psg_bd_negative_comment_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "psg_bd_negative_black_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "psg_bd_negative_ticket_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "psg_bd_negative_complain_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "psg_zd_negative_comment_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "psg_zd_negative_black_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "psg_zd_negative_ticket_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "psg_zd_negative_complain_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "plan_start_days_rate",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "reply_rate",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "psg_finish_rate",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "psg_bd_negative_rate",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "psg_zd_negative_rate",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_first_amount",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_first_thanksfee",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_first_serviceprice",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_end_amount",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_end_thanksfee",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_end_serviceprice",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_pay_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_pay_cnt_city",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_pay_cnt_overcity",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_sum_amount",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "exceed_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "exceed_pay_cnt_180d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_nature_month_finish_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_last_nature_month_finish_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_finish_cnt_pre2w",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_finish_cnt_pre3w",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_finish_cnt_pre4w",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_finish_cnt_pre5w",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_passenger_invited_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_after_accepted_canceled_cnt_1d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_before_accepted_cancel_cnt_1d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_after_accepted_cancel_cnt_1d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_finish_cnt_1w_weekend",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_weekwork_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_passenger_deal_weekwork_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_accept_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "driver_reply_days",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_distance",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_cnt_overcity",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_accept_cnt_overcity",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_finish_cnt_overcity",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_cnt_city",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_accept_cnt_city",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_finish_cnt_city",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_finish_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "driver_finish_days",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_finish_app_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_sum_serviceprice",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_sum_bounty",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_sum_driverdiscount",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_sum_thanksfee",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_cnt_7d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_finish_cnt_7d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_finish_cnt_14d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_finish_cnt_30d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "driver_plan_start_days",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_driver_coupon_cnt_expire",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_driver_coupon_cnt_used",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_driver_coupon_amount_used",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_driver_coupon_cnt_usable",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "driver_bd_negative_comment_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "driver_bd_negative_black_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "driver_bd_negative_ticket_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "driver_bd_negative_complain_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "driver_zd_negative_comment_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "driver_zd_negative_black_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "driver_zd_negative_ticket_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "driver_zd_negative_complain_cnt",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "plan_start_rate",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "driver_finish_rate",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "reply_freq_avg",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "finish_freq_avg",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "driver_bd_negative_rate",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "driver_zd_negative_rate",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_sum_fareprice",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_sum_driverpunishprice",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_finish_cnt_pre2w",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_finish_cnt_pre3w",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_finish_cnt_pre4w",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_finish_cnt_pre5w",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_finish_cnt_now_nature_month",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_order_driver_finish_cnt_last_nature_month",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "driving_experience",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_view_driver_homepage_cnt_1d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_view_driver_lookorder_cnt_1d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_view_driver_choiceorder_cnt_1d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_view_driver_homepage_cnt_7d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_view_driver_lookorder_cnt_7d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_view_driver_choiceorder_cnt_7d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_view_driver_homepage_cnt_14d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_view_driver_lookorder_cnt_14d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_view_driver_choiceorder_cnt_14d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_view_driver_homepage_cnt_30d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_view_driver_lookorder_cnt_30d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {
+    "name": "hbik_view_driver_choiceorder_cnt_30d",
+    "type": "tf.float64",
+    "feature_column_function": "numeric_column"
+  },
+  {"name":"same_city_look_order_start_distance#same_city_look_order_price#same_city_look_order_time_diff", "type":"tf.float64", "feature_column_function":"crossed_column","hash_bucket_size":100000}
+]
+
+
+
+
+
