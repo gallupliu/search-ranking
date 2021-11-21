@@ -229,22 +229,22 @@ import tensorflow as tf
 
 from tensorflow.python.feature_column.feature_column import _LazyBuilder
 
-def test_embedding():
-    # tf.set_random_seed(1)
-    # color_data = {'color': [['R', 'C'], ['G', 'A'], ['B', 'B'], ['A', 'A']]}  # 4行样本
-    # pets = {"pets": ['牛', '奶']}
-    pets = {'pets': [['牛', '奶'], ['液', '体'], ['安', '慕'], ['婴', '儿'], ['口', '味'],["爱",'情']]}
-
-    builder = _LazyBuilder(pets)
-
-
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-    fc_path = os.path.join(dir_path, 'char.txt')
-
-    column = tf.feature_column.categorical_column_with_vocabulary_file(
-        key="pets",
-        vocabulary_file=fc_path,
-        num_oov_buckets=0)
+# def test_embedding():
+#     # tf.set_random_seed(1)
+#     # color_data = {'color': [['R', 'C'], ['G', 'A'], ['B', 'B'], ['A', 'A']]}  # 4行样本
+#     # pets = {"pets": ['牛', '奶']}
+#     pets = {'pets': [['牛', '奶'], ['液', '体'], ['安', '慕'], ['婴', '儿'], ['口', '味'],["爱",'情']]}
+#
+#     builder = _LazyBuilder(pets)
+#
+#
+#     dir_path = os.path.dirname(os.path.realpath(__file__))
+#     fc_path = os.path.join(dir_path, 'char.txt')
+#
+#     column = tf.feature_column.categorical_column_with_vocabulary_file(
+#         key="pets",
+#         vocabulary_file=fc_path,
+#         num_oov_buckets=0)
 
     # def truncate_fn():
     #     return tf.slice(serialized_list, [0, 0], [batch_size, list_size])
@@ -258,17 +258,17 @@ def test_embedding():
     # serialized_list = tf.cond(
     #     pred=cur_list_size > list_size, true_fn=truncate_fn, false_fn=pad_fn)
     #
-    color_column_tensor = column._get_sparse_tensors(builder)
-
-    color_embeding = tf.feature_column.embedding_column(column, 4, combiner='sum')
-    color_embeding_dense_tensor = tf.feature_column.input_layer(pets, [color_embeding])
-
-    with tf.Session() as session:
-        session.run(tf.global_variables_initializer())
-        session.run(tf.tables_initializer())
-        print(session.run([color_column_tensor.id_tensor]))
-        print('embeding' + '_' * 40)
-        print(session.run([color_embeding_dense_tensor]))
+    # color_column_tensor = column._get_sparse_tensors(builder)
+    #
+    # color_embeding = tf.feature_column.embedding_column(column, 4, combiner='sum')
+    # color_embeding_dense_tensor = tf.feature_column.input_layer(pets, [color_embeding])
+    #
+    # with tf.Session() as session:
+    #     session.run(tf.global_variables_initializer())
+    #     session.run(tf.tables_initializer())
+    #     print(session.run([color_column_tensor.id_tensor]))
+    #     print('embeding' + '_' * 40)
+    #     print(session.run([color_embeding_dense_tensor]))
 
 # test_embedding()
 
@@ -556,62 +556,260 @@ import tensorflow as tf
 from tensorflow import feature_column
 from tensorflow.python.feature_column.feature_column import _LazyBuilder
 
-def test_categorical_column_with_vocabulary_list():
-    color_data = {'color': [['R', 'R'], ['G', 'R'], ['B', 'G'], ['A', 'A']]}  # 4行样本
-    builder = _LazyBuilder(color_data)
-    color_column = feature_column.categorical_column_with_vocabulary_list(
-        'color', ['R', 'G', 'B'], dtype=tf.string, default_value=-1
-    )
+# def test_crossed_column():
+#     """ crossed column测试 """
+#     featrues = {
+#         'price': [['A'], ['B'], ['C']],
+#         'color': [['R'], ['G'], ['B']]
+#     }
+#     price = feature_column.categorical_column_with_vocabulary_list('price', ['A', 'B', 'C', 'D'])
+#     color = feature_column.categorical_column_with_vocabulary_list('color', ['R', 'G', 'B'])
+#     p_x_c = feature_column.crossed_column([price, color], 16)
+#     p_x_c_identy = feature_column.indicator_column(p_x_c)
+#     p_x_c_identy_dense_tensor = feature_column.input_layer(featrues, [p_x_c_identy])
+#     with tf.Session() as session:
+#         session.run(tf.global_variables_initializer())
+#         session.run(tf.tables_initializer())
+#         print(session.run([p_x_c_identy_dense_tensor]))
+# test_crossed_column()
+#
+# def test_categorical_column_with_hash_bucket():
+#     color_data = {'color': [[2], [5], [-1], [0]]}  # 4行样本
+#     builder = _LazyBuilder(color_data)
+#     color_column = feature_column.categorical_column_with_hash_bucket('color', 7, dtype=tf.int32)
+#     color_column_tensor = color_column._get_sparse_tensors(builder)
+#     with tf.Session() as session:
+#         session.run(tf.global_variables_initializer())
+#         session.run(tf.tables_initializer())
+#         print(session.run([color_column_tensor.id_tensor]))
+#
+#     # 将稀疏的转换成dense，也就是one-hot形式，只是multi-hot
+#     color_column_identy = feature_column.indicator_column(color_column)
+#     color_dense_tensor = feature_column.input_layer(color_data, [color_column_identy])
+#
+#     with tf.Session() as session:
+#         session.run(tf.global_variables_initializer())
+#         session.run(tf.tables_initializer())
+#         print('use input_layer' + '_' * 40)
+#         print(session.run([color_dense_tensor]))
+#
+# test_categorical_column_with_hash_bucket()
 
-    # color_column_tensor = color_column._get_sparse_tensors(builder)
-    # with tf.Session() as session:
-    #     session.run(tf.global_variables_initializer())
-    #     session.run(tf.tables_initializer())
-    #     print(session.run([color_column_tensor.id_tensor]))
+# def test_embedding():
+#     tf.set_random_seed(1)
+#     color_data = {'color': [['R', 'G'], ['G', 'A'], ['B', 'B'], ['A', 'A'],['A','C']]}  # 4行样本
+#     builder = _LazyBuilder(color_data)
+#     color_column = feature_column.categorical_column_with_vocabulary_list(
+#         'color', ['R', 'G', 'B'], dtype=tf.string, default_value=-1
+#     )
+#     color_column_tensor = color_column._get_sparse_tensors(builder)
+#
+#     color_embeding = feature_column.embedding_column(color_column, 5, combiner='sum')
+#     color_embeding_dense_tensor = feature_column.input_layer(color_data, [color_embeding])
+#
+#     with tf.Session() as session:
+#         session.run(tf.global_variables_initializer())
+#         session.run(tf.tables_initializer())
+#         print(session.run([color_column_tensor.id_tensor]))
+#         print('embeding' + '_' * 40)
+#         print(session.run([color_embeding_dense_tensor]))
+#
+# test_embedding()
+#
+# def test_sequence_embedding():
+#     tf.set_random_seed(1)
+#     color_data = {'color': [['R', 'G'], ['G', 'A'], ['B', 'B'], ['A', 'A'],['A','C']]}  # 4行样本
+#     builder = _LazyBuilder(color_data)
+#     color_column = feature_column.sequence_categorical_column_with_vocabulary_list(
+#         'color', ['R', 'G', 'B'], dtype=tf.string, default_value=-1
+#     )
+#     color_column_tensor = color_column._get_sparse_tensors(builder)
+#
+#     color_embeding = feature_column.embedding_column(color_column, 5, combiner='sum')
+#     sequence_feature_layer = tf.keras.experimental.SequenceFeatures(color_embeding)
+#     text_input_layer, sequence_length = sequence_feature_layer(color_data)
+#     sequence_length_mask = tf.sequence_mask(sequence_length)
+#
+#     # color_embeding = feature_column.embedding_column(color_column, 4, combiner='sum')
+#     # color_embeding_dense_tensor = feature_column.input_layer(color_data, [color_embeding])
+#
+#     with tf.Session() as session:
+#         session.run(tf.global_variables_initializer())
+#         session.run(tf.tables_initializer())
+#         print(session.run([color_column_tensor.id_tensor]))
+#         print('embeding' + '_' * 40)
+#         print(session.run([text_input_layer]))
+#
+# test_sequence_embedding()
 
-    # 将稀疏的转换成dense，也就是one-hot形式，只是multi-hot
-    color_column_identy = feature_column.indicator_column(color_column)
-    color_dense_tensor = feature_column.input_layer(color_data, [color_column_identy])
-    color_emb = tf.feature_column.embedding_column(color_column, dimension=10)
-    with tf.Session() as session:
-        session.run(tf.global_variables_initializer())
-        session.run(tf.tables_initializer())
-        # print('use input_layer' + '_' * 40)
-        # print(session.run([color_dense_tensor]))
-        print(session.run(color_emb))
+# def test_shared_embedding_column_with_hash_bucket():
+#     color_data = {'color': [[2, 2], [5, 5], [0, -1], [0, 0]],
+#                   'color2': [[2], [5], [-1], [0]]}  # 4行样本
+#     builder = _LazyBuilder(color_data)
+#     color_column = feature_column.categorical_column_with_hash_bucket('color', 7, dtype=tf.int32)
+#     color_column_tensor = color_column._get_sparse_tensors(builder)
+#     color_column2 = feature_column.categorical_column_with_hash_bucket('color2', 7, dtype=tf.int32)
+#     color_column_tensor2 = color_column2._get_sparse_tensors(builder)
+#     with tf.Session() as session:
+#         session.run(tf.global_variables_initializer())
+#         session.run(tf.tables_initializer())
+#         print('not use input_layer' + '_' * 40)
+#         print(session.run([color_column_tensor.id_tensor]))
+#         print(session.run([color_column_tensor2.id_tensor]))
+#
+#     # 将稀疏的转换成dense，也就是one-hot形式，只是multi-hot
+#     # color_column_embed1 = feature_column.shared_embedding_columns([color_column2, color_column], 3, combiner='sum')
+#     # print(type(color_column_embed1))
+#     # color_dense_tensor1 = feature_column.input_layer(color_data, color_column_embed1)
+#
+#     color_column_embed = feature_column.shared_embedding_columns([color_column2, color_column], 3, combiner='sum')
+#     print(type(color_column_embed))
+#     color_dense_tensor = feature_column.input_layer(color_data, color_column_embed)
+#
+#     with tf.Session() as session:
+#         session.run(tf.global_variables_initializer())
+#         session.run(tf.tables_initializer())
+#         print('use input_layer' + '_' * 40)
+#         # print(session.run(color_dense_tensor1))
+#         print(session.run(color_dense_tensor))
+#
+# test_shared_embedding_column_with_hash_bucket()
 
-test_categorical_column_with_vocabulary_list()
+# def test_sequence_shared_embedding_column_with_hash_bucket():
+#     color_data = {'color': [[2, 2], [5, 5], [0, -1], [0, 0]],
+#                   'color2': [[2], [5], [-1], [0]]}  # 4行样本
+#     builder = _LazyBuilder(color_data)
+#     color_column = feature_column.sequence_categorical_column_with_hash_bucket('color', 7, dtype=tf.int32)
+#     color_column_tensor = color_column._get_sparse_tensors(builder)
+#     color_column2 = feature_column.sequence_categorical_column_with_hash_bucket('color2', 7, dtype=tf.int32)
+#     color_column_tensor2 = color_column2._get_sparse_tensors(builder)
+#     with tf.Session() as session:
+#         session.run(tf.global_variables_initializer())
+#         session.run(tf.tables_initializer())
+#         print('not use input_layer' + '_' * 40)
+#         print(session.run([color_column_tensor.id_tensor]))
+#         print(session.run([color_column_tensor2.id_tensor]))
+#
+#     # 将稀疏的转换成dense，也就是one-hot形式，只是multi-hot
+#     # color_column_embed = feature_column.shared_embedding_columns([color_column2, color_column], 3, combiner='sum')
+#     # print(type(color_column_embed))
+#     color_embeding = feature_column.shared_embedding_columns([color_column2, color_column], 5, combiner='sum')
+#     sequence_feature_layer = tf.keras.experimental.SequenceFeatures(color_embeding)
+#     text_input_layer, sequence_length = sequence_feature_layer(color_data)
+#     # color_dense_tensor = feature_column.input_layer(color_data, text_input_layer)
+#
+#     with tf.Session() as session:
+#         session.run(tf.global_variables_initializer())
+#         session.run(tf.tables_initializer())
+#         print('use input_layer' + '_' * 40)
+#         print(session.run(text_input_layer))
+#
+# test_sequence_shared_embedding_column_with_hash_bucket()
+# def test_sequence_keras_shared_embedding_column_with_hash_bucket():
+#     color_data = {'query': [[2, 2], [5, 5], [0, -1], [0, 0]],
+#                   'item': [[2], [5], [-1], [0]]}  # 4行样本
+#     query_input = tf.keras.Input(shape=(1,), name='query', dtype=tf.int64)
+#     item_input = tf.keras.Input(shape=(1,), name='item', dtype=tf.int64)
+#     video_vocab_list = [0,1,2,3,4,5]
+#     dimension=3
+#     embed_layer = tf.keras.layers.Embedding(input_dim=len(video_vocab_list), output_dim=dimension)
+#     embedded_query_input = embed_layer(query_input)
+#     embedded_item_input = embed_layer(item_input)
+#     with tf.Session() as session:
+#         session.run(tf.global_variables_initializer())
+#         session.run(tf.tables_initializer())
+#         print('use input_layer' + '_' * 40)
+#         print(session.run([embedded_query_input]))
+#         print(session.run([embedded_item_input]))
+# def test_categorical_column_with_vocabulary_list():
+#     color_data = {'color': [['R', 'R'], ['G', 'R'], ['B', 'G'], ['A', 'A']]}  # 4行样本
+#     builder = _LazyBuilder(color_data)
+#     color_column = feature_column.categorical_column_with_vocabulary_list(
+#         'color', ['R', 'G', 'B'], dtype=tf.string, default_value=-1
+#     )
+#
+#     color_column_tensor = color_column._get_sparse_tensors(builder)
+#     with tf.Session() as session:
+#         session.run(tf.global_variables_initializer())
+#         session.run(tf.tables_initializer())
+#         print(session.run([color_column_tensor.id_tensor]))
+#
+#     # 将稀疏的转换成dense，也就是one-hot形式，只是multi-hot
+#     color_column_identy = feature_column.indicator_column(color_column)
+#     color_dense_tensor = feature_column.input_layer(color_data, [color_column_identy])
+#     color_emb_column = tf.feature_column.embedding_column(color_column, dimension=10)
+#     color_emb_tensor = feature_column.input_layer(color_data, [color_emb_column])
+#     with tf.Session() as session:
+#         session.run(tf.global_variables_initializer())
+#         session.run(tf.tables_initializer())
+#         print('use input_layer' + '_' * 40)
+#         print(session.run([color_dense_tensor]))
+#         print(session.run([color_emb_tensor]))
+#
+# test_categorical_column_with_vocabulary_list()
+#
+#
+# def test_sequence_categorical_column_with_vocabulary_list():
+#     color_data = {'color': [['R', 'R'], ['G', 'R'], ['B', 'G'], ['A', 'A']]}  # 4行样本
+#     builder = _LazyBuilder(color_data)
+#     color_column = feature_column.categorical_column_with_vocabulary_list(
+#         'color', ['R', 'G', 'B'], dtype=tf.string, default_value=-1
+#     )
+#
+#     color_column_tensor = color_column._get_sparse_tensors(builder)
+#     with tf.Session() as session:
+#         session.run(tf.global_variables_initializer())
+#         session.run(tf.tables_initializer())
+#         print(session.run([color_column_tensor.id_tensor]))
+#
+#     # 将稀疏的转换成dense，也就是one-hot形式，只是multi-hot
+#     color_column_identy = feature_column.indicator_column(color_column)
+#     color_dense_tensor = feature_column.input_layer(color_data, [color_column_identy])
+#     color_emb_column = tf.feature_column.embedding_column(color_column, dimension=10)
+#     color_emb_tensor = feature_column.input_layer(color_data, [color_emb_column])
+#     with tf.Session() as session:
+#         session.run(tf.global_variables_initializer())
+#         session.run(tf.tables_initializer())
+#         print('use input_layer' + '_' * 40)
+#         print(session.run([color_dense_tensor]))
+#         print(session.run([color_emb_tensor]))
 
-
-def test_sequence_categorical_column_with_vocabulary_list():
-    color_data = {'color': [['R', 'R'], ['G', 'R'], ['B', 'G'], ['A', 'A']]}  # 4行样本
-    builder = _LazyBuilder(color_data)
-    # color_column = feature_column.categorical_column_with_vocabulary_list(
-    #     'color', ['R', 'G', 'B'], dtype=tf.string, default_value=-1
-    # )
-
-    color_column = tf.feature_column.sequence_categorical_column_with_vocabulary_list(
-        key='color',
-        vocabulary_list=['R', 'G', 'B'],
-        dtype=tf.string,
-        default_value=-1,
-        num_oov_buckets=2)
-
-    color_column_tensor = color_column._get_sparse_tensors(builder)
-    # with tf.Session() as session:
-    #     session.run(tf.global_variables_initializer())
-    #     session.run(tf.tables_initializer())
-    #     print(session.run([color_column_tensor.id_tensor]))
-
-    # 将稀疏的转换成dense，也就是one-hot形式，只是multi-hot
-    # color_column_identy = feature_column.indicator_column(color_column)
-    # color_dense_tensor = feature_column.input_layer(color_data, [color_column_identy])
-    color_emb = tf.feature_column.embedding_column(color_column, dimension=10)
-    with tf.Session() as session:
-        session.run(tf.global_variables_initializer())
-        session.run(tf.tables_initializer())
-        print('use input_layer' + '_' * 40)
-        # print(session.run([color_dense_tensor]))
-        print(session.run(color_emb))
-
-test_sequence_categorical_column_with_vocabulary_list()
+# test_sequence_categorical_column_with_vocabulary_list()
+#
+# def test_embedding_tf1():
+#     print(tf.__version__)
+#     # 然后将上面的变量存入到ckpt_color(checkpoint文件)中
+#     # 在shared_embedding_column中会用到保存的ckpt_color文件
+#
+#     ckpt_path = ''  # 你指定的ckpt文件
+#
+#     color_vocab = ['a', 'b', 'c', 'd']
+#     color_emb = [[1.0, 2.0], [2.0, 3.0], [3.0, 4.0], [4.0, 5.0]]
+#     color_emb = tf.Variable([[1.0, 2.0], [2.0, 3.0], [3.0, 4.0], [4.0, 5.0]], name='color_emb')
+#     # tf.train.saver()
+#     color_vocab = ['a', 'b', 'c', 'd']
+#     color_data = {'color_clicked': [['a', 'b'], ['c', 'd']],
+#                   'color': [['c'], ['a']]}
+#
+#     color_column = tf.feature_column.categorical_column_with_vocabulary_list('color', vocabulary_list=color_vocab)
+#     color_column2 = tf.feature_column.categorical_column_with_vocabulary_list('color_clicked',
+#                                                                               vocabulary_list=color_vocab)
+#     color_emb_column = tf.feature_column.shared_embedding_columns([color_column, color_column2], 4,
+#                                                                   )
+#     res = tf.feature_column.input_layer(color_data, color_emb_column)
+#
+#     # sess = tf.compat.v1.InteractiveSession()
+#     # sess.run(tf.compat.v1.global_variables_initializer())
+#     #
+#     # print(sess.run(res))
+#     with tf.Session() as sess:
+#         sess.run(tf.compat.v1.global_variables_initializer)
+#         sess.run(tf.compat.v1.tables_initializer)
+#         sess.run(res)
+#
+#     # 输出结果和输入对应:
+#     # 输入： [['c', ['a', 'b']], ['a', ['c', 'd']]]
+#     # 输出： [[3., 4., 1.5, 2.5], [1., 2., 3.5, 4.5]]
+#
+#
+# test_embedding_tf1()

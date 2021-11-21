@@ -68,7 +68,7 @@ def item2vec(texts, size, window, save_path):
     :return:
     """
     # skip-gram
-    model = Word2Vec(texts, size=size, window=window, min_count=1, iter=10, workers=multiprocessing.cpu_count())
+    model = Word2Vec(texts, vector_size=size, window=window, min_count=1, epochs=10, workers=multiprocessing.cpu_count())
     model.wv.save_word2vec_format(save_path + '.vec', binary=False)
 
     keys = set()
@@ -91,10 +91,10 @@ if __name__ == '__main__':
     # df = load_data(char_file_path, 'chars')
     # char_df = id_data_process(df)
     # item2vec(char_df, size=32, window=3, save_path='../data/char')
-    # char_file_path = '../recall_user_item_act_test.csv'
-    # df = load_data(char_file_path, 'click_seq')
-    # char_df = id_data_process(df)
-    # item2vec(char_df, size=32, window=3, save_path='../data/id')
+    char_file_path = '../recall_user_item_act_test.csv'
+    df = load_data(char_file_path, 'click_seq')
+    char_df = id_data_process(df)
+    item2vec(char_df, size=32, window=3, save_path='../data/id')
 
     data = pd.read_csv('../hys_df_test.csv', sep='\t')
     char_df = id_data_process(data.iloc[:, 1:5].values)

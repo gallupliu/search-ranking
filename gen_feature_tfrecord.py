@@ -5,6 +5,12 @@ import random
 import json
 import tensorflow as tf
 from run_ctr_model import census_text_input_fn_from_tfrecords
+from pyspark.sql.types import *
+from pyspark import SparkConf, SparkContext
+from pyspark.sql.functions import col, lit, split, udf, concat,concat_ws
+from pyspark.sql.types import ArrayType, DoubleType, FloatType, StringType, IntegerType
+
+from utils.utils import CreateSparkContex
 
 ROOT_PATH = './data/'
 TRAIN_RAW = ROOT_PATH + 'adult/adult.data'
@@ -301,80 +307,83 @@ def run():
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--type', metavar='N', type=str, choices=["text", "raw"],
                         help='add text')
+    parser.add_argument('--mode', metavar='N', type=str, choices=["rank", "match"],
+                        help='the type of train model')
 
     args = parser.parse_args()
 
     ROOT_PATH = './data/'
-    # TRAIN_RAW = ROOT_PATH + 'adult/adult.data'
-    # TEST_RAW = ROOT_PATH + 'adult/adult.test'
-    #
-    # HEADER = ['age', 'workclass', 'fnlwgt', 'education', 'education_num',
-    #           'marital_status', 'occupation', 'relationship', 'race', 'gender',
-    #           'capital_gain', 'capital_loss', 'hours_per_week',
-    #           'native_country', 'income_bracket']
-    #
-    # HEADER_DEFAULTS = [[0], [''], [0], [''], [0], [''], [''], [''], [''], [''],
-    #                    [0], [0], [0], [''], ['']]
-    # train_df = pd.read_csv(TRAIN_RAW, names=_CSV_COLUMNS)
-    # test_df = pd.read_csv(TEST_RAW, names=_CSV_COLUMNS)
-    #
-    # print(train_df.dtypes)
-    # for col in _CSV_COLUMNS:
-    #     if col in _STRING_COLS:
-    #         print('col:{0}'.format(col))
-    #         train_df[col] = train_df[col].map(lambda x: str(x).replace(' ', ''))
-    #         test_df[col] = test_df[col].map(lambda x: str(x).replace(' ', ''))
-    #
-    # if args.type == "text":
-    #     lst = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    #     print(random.sample(lst, 4))
-    #     HEADER = HEADER +TEXT_FEATURE_NAMES+ EMBEDDING_FEATURE_NAMES
-    #     # random.randint(3,5)
-    #     train_df['query'] = train_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
-    #     test_df['query'] = test_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
-    #     train_df['title'] = train_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
-    #     test_df['title'] = test_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
-    #     train_df['user_emb'] = train_df.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
-    #     test_df['user_emb'] = test_df.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
-    #     train_df['item_emb'] = train_df.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
-    #     test_df['item_emb'] = test_df.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
-    #     ROOT_PATH = ROOT_PATH + 'text/'
-    # else:
-    #     ROOT_PATH = ROOT_PATH + 'raw/'
-    # train_df['income_bracket'] = train_df.apply(lambda x: label_get(x.income_bracket), axis=1)
-    # test_df['income_bracket'] = test_df.apply(lambda x: label_get(x.income_bracket), axis=1)
-    #
-    # test_df.sample(frac=1, random_state=2021)
-    # eval = test_df.loc[: int(len(test_df) * 0.5)]
-    # test = test_df.loc[int(len(test_df) * 0.5) + 1:]
-    # test.reset_index(drop=True, inplace=True)
-    #
-    # TRAIN_PATH = ROOT_PATH + 'adult/train.csv'
-    # EVAL_PATH = ROOT_PATH + 'adult/eval.csv'
-    # TEST_PATH = ROOT_PATH + 'adult/test.csv'
-    # PREDICT_PATH = ROOT_PATH + 'adult/predict.csv'
-    #
-    # train_df.to_csv(TRAIN_PATH, index=False, header=None)
-    # eval.to_csv(EVAL_PATH, index=False, header=None)
-    # test.to_csv(TEST_PATH, index=False, header=None)
-    #
-    # train_data_files = [TRAIN_PATH]
-    # valid_data_files = [EVAL_PATH]
-    # test_data_files = [TEST_PATH]
-    #
-    # print("Converting Training Data Files")
-    # for input_csv_file in train_data_files:
-    #     create_tfrecords_file(input_csv_file,HEADER)
-    # print("")
-    #
-    # print("Converting Validation Data Files")
-    # for input_csv_file in valid_data_files:
-    #     create_tfrecords_file(input_csv_file,HEADER)
-    # print("")
-    #
-    # print("Converting Test Data Files")
-    # for input_csv_file in test_data_files:
-    #     create_tfrecords_file(input_csv_file,HEADER)
+
+    TRAIN_RAW = ROOT_PATH + 'adult/adult.data'
+    TEST_RAW = ROOT_PATH + 'adult/adult.test'
+
+    HEADER = ['age', 'workclass', 'fnlwgt', 'education', 'education_num',
+              'marital_status', 'occupation', 'relationship', 'race', 'gender',
+              'capital_gain', 'capital_loss', 'hours_per_week',
+              'native_country', 'income_bracket']
+
+    HEADER_DEFAULTS = [[0], [''], [0], [''], [0], [''], [''], [''], [''], [''],
+                       [0], [0], [0], [''], ['']]
+    train_df = pd.read_csv(TRAIN_RAW, names=_CSV_COLUMNS)
+    test_df = pd.read_csv(TEST_RAW, names=_CSV_COLUMNS)
+
+    print(train_df.dtypes)
+    for col in _CSV_COLUMNS:
+        if col in _STRING_COLS:
+            print('col:{0}'.format(col))
+            train_df[col] = train_df[col].map(lambda x: str(x).replace(' ', ''))
+            test_df[col] = test_df[col].map(lambda x: str(x).replace(' ', ''))
+
+    if args.type == "text":
+        lst = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        print(random.sample(lst, 4))
+        HEADER = HEADER +TEXT_FEATURE_NAMES+ EMBEDDING_FEATURE_NAMES
+        # random.randint(3,5)
+        train_df['query'] = train_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
+        test_df['query'] = test_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
+        train_df['title'] = train_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
+        test_df['title'] = test_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
+        train_df['user_emb'] = train_df.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
+        test_df['user_emb'] = test_df.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
+        train_df['item_emb'] = train_df.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
+        test_df['item_emb'] = test_df.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
+        ROOT_PATH = ROOT_PATH + 'text/'
+    else:
+        ROOT_PATH = ROOT_PATH + 'raw/'
+    train_df['income_bracket'] = train_df.apply(lambda x: label_get(x.income_bracket), axis=1)
+    test_df['income_bracket'] = test_df.apply(lambda x: label_get(x.income_bracket), axis=1)
+
+    test_df.sample(frac=1, random_state=2021)
+    eval = test_df.loc[: int(len(test_df) * 0.5)]
+    test = test_df.loc[int(len(test_df) * 0.5) + 1:]
+    test.reset_index(drop=True, inplace=True)
+
+    TRAIN_PATH = ROOT_PATH + 'adult/train.csv'
+    EVAL_PATH = ROOT_PATH + 'adult/eval.csv'
+    TEST_PATH = ROOT_PATH + 'adult/test.csv'
+    PREDICT_PATH = ROOT_PATH + 'adult/predict.csv'
+
+    train_df.to_csv(TRAIN_PATH, index=False, header=None)
+    eval.to_csv(EVAL_PATH, index=False, header=None)
+    test.to_csv(TEST_PATH, index=False, header=None)
+
+    train_data_files = [TRAIN_PATH]
+    valid_data_files = [EVAL_PATH]
+    test_data_files = [TEST_PATH]
+
+    print("Converting Training Data Files")
+    for input_csv_file in train_data_files:
+        create_tfrecords_file(input_csv_file,HEADER)
+    print("")
+
+    print("Converting Validation Data Files")
+    for input_csv_file in valid_data_files:
+        create_tfrecords_file(input_csv_file,HEADER)
+    print("")
+
+    print("Converting Test Data Files")
+    for input_csv_file in test_data_files:
+        create_tfrecords_file(input_csv_file,HEADER)
 
     print('path:{0}'.format(ROOT_PATH + 'adult/train.tfrecords'))
     train_dataset = census_text_input_fn_from_tfrecords(ROOT_PATH + 'text/adult/train.tfrecords', 1, shuffle=True,
@@ -390,6 +399,168 @@ def run():
             print('dict:{0}'.format(train_dataset))
             print(session.run(train_dataset))
 
+def padding_text(df, column, length):
+    def pad(column, length):
+        if column is None:
+            return length * ['pad']
+        else:
+            text_len = len(column)
+            if text_len < length:
+                return column + ['pad'] * (length - text_len)
+            elif text_len > length:
+                return column[:length]
+            else:
+                return column
+
+    pad_udf = udf(pad, ArrayType(StringType()))
+    df = df.withColumn('length', lit(length))
+    df = df.withColumn(column, pad_udf(column, 'length')).drop('length')
+    return df
+
+
+
+
+
+
+
+
+
+def run_hys():
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('--type', metavar='N', type=str, choices=["text", "raw"],
+                        help='add text')
+    parser.add_argument('--mode', metavar='N', type=str, choices=["rank", "match"],
+                        help='the type of train model')
+
+    args = parser.parse_args()
+    fields = [StructField("id", IntegerType()), StructField("keyword", StringType()),
+              StructField("title", StringType()), StructField("brand", StringType()),
+              StructField("tag", StringType()),
+              StructField("volume", FloatType()),
+              StructField("type", StringType()),
+              StructField("price", FloatType()),
+              # StructField("user_bert_emb", ArrayType(FloatType(), True)),
+              # StructField("item_bert_emb", ArrayType(FloatType(), True)),
+              StructField("label", IntegerType())]
+    schema = StructType(fields)
+    hsy_data = {
+        "label": [0, 1, 0, 1, 1, 0, 1, 1, 0, 0],
+        "keyword": ["安 慕 希", "牛 奶", "牛", "奶 粉", "婴 儿 奶 粉", "液 态 奶", "牛 肉", "奶", "牛 肉 干", "牛 奶 口 味"],
+        "title": ["安 慕 希", "牛 奶", "牛", "奶 粉", "婴 儿 奶 粉", "液 态 奶", "牛 肉", "奶", "牛 肉 干", "牛 奶 口 味"],
+        "brand": ["安 慕 希", "伊 利", "蒙 牛", "奶 粉", "婴 儿 奶 粉", "液 态 奶", "牛 肉", "奶", "牛 肉 干", "牛 奶 口 味"],
+        "tag": ["酸 奶", "纯 牛 奶", "牛", "固 态 奶", "婴 儿 奶 粉", "液 态 奶", "牛 肉", "奶", "牛 肉 干", "牛 奶 口 味"],
+        "volume": [1, 2, 3, 4, 5, 4.3, 1.2, 4.5, 1.0, 0.8],
+        "type": [0, 1, 0, 1, 2, 1, 0, 0, 2, 1],
+        "price": [10.0, 51.0, 20.0, 31.0, 42.0, 19.0, 30.0, 20.0, 21.0, 1.2],
+        "id": [39877457, 39877710, 39878084, 39878084, 39878084, 39877710, 39878084, 39877710, 39878084, 39878084],
+        # "all_topic_fav_7": ["1: 0.4074,177: 0.1217,502: 0.4826", "1: 0.4074,177: 0.1217,502: 0.4826",
+        #                     "1: 0.4074,177: 0.1217,502: 0.4826", "1: 0.4074,177: 0.1217,502: 0.4826",
+        #                     "1: 0.4074,177: 0.1217,502: 0.4826", "1: 0.4074,177: 0.1217,502: 0.4826",
+        #                     "1: 0.4074,177: 0.1217,502: 0.4826",
+        #                     "1: 0.4074,177: 0.1217,502: 0.4826", "1: 0.4074,177: 0.1217,502: 0.4826",
+        #                     "1: 0.4074,177: 0.1217,502: 0.4826"]
+
+    }
+
+    test_rows = []
+    for i in range(len(hsy_data["label"])):
+        test_row = []
+        test_row.append(hsy_data["id"][i])
+        test_row.append(hsy_data["keyword"][i])
+        test_row.append(hsy_data["title"][i])
+        test_row.append(hsy_data["brand"][i])
+        test_row.append(hsy_data["tag"][i])
+        test_row.append(float(hsy_data["volume"][i]))
+        test_row.append(hsy_data["type"][i])
+        test_row.append(hsy_data["price"][i])
+        # test_row.append(np.random.uniform(low=-0.1, high=0.1, size=10).tolist())
+        # test_row.append(np.random.uniform(low=-0.1, high=0.1, size=10).tolist())
+        test_row.append(hsy_data["label"][i])
+        test_rows.append(test_row)
+
+    # conf = SparkConf().set("spark.jars", "/Users/gallup/study/search-ranking/config/spark-tfrecord_2.12-0.3.3_1.15.0.jar")
+    #
+    # sc = SparkContext( conf=conf)
+    sc, spark = CreateSparkContex()
+    rdd = spark.sparkContext.parallelize(test_rows)
+
+    df = spark.createDataFrame(rdd, schema)
+    df.show()
+    path = './'+args.mode+"_feature.tfrecord"
+    print('path:{0}'.format(path))
+    if args.mode == "rank":
+        df = df.withColumn('text', concat_ws(' ', col("keyword"), col("title"), col("brand"), col("tag")))
+        df = df.withColumn('text', split(col('text'), ' '))
+        df = padding_text(df, 'text', 20).drop(*["keyword", "title", "brand", "tag"])
+
+        def parse_func(buff):
+            features = {
+                # int
+                "id": tf.io.FixedLenFeature([], tf.int64),
+                # string
+                # "keyword": tf.io.FixedLenFeature([5], tf.string),
+                # "title": tf.io.FixedLenFeature([5], tf.string),
+                # "brand": tf.io.FixedLenFeature([5], tf.string),
+                # "tag": tf.io.FixedLenFeature([5], tf.string),
+                "text": tf.io.FixedLenFeature([20], tf.string),
+                "type": tf.io.FixedLenFeature([], tf.string),
+
+                "volume": tf.io.FixedLenFeature([], tf.float32),
+                "price": tf.io.FixedLenFeature([], tf.float32),
+                'user_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # query向量
+                'item_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # item向量
+                "label": tf.io.FixedLenFeature([], tf.int64),
+
+            }
+            features = tf.io.parse_single_example(buff, features)
+            labels = features.pop('label')
+            labels = tf.compat.v1.to_float(labels)
+            return features, labels
+
+    else:
+
+        df = df.withColumn('item', concat_ws(' ', col("title"), col("brand"), col("tag")))
+        df = df.withColumn('item', split(col('text'), ' '))
+        df = padding_text(df, 'item', 15).drop(*["title", "brand", "tag"])
+        df = df.withColumn('keyword', split(col('keyword'), ' '))
+        df = padding_text(df, 'keyword', 5).drop(*['keyword'])
+
+        def parse_func(buff):
+            features = {
+                # int
+                "id": tf.io.FixedLenFeature([], tf.int64),
+                # string
+                "keyword": tf.io.FixedLenFeature([5], tf.string),
+                # "title": tf.io.FixedLenFeature([5], tf.string),
+                # "brand": tf.io.FixedLenFeature([5], tf.string),
+                # "tag": tf.io.FixedLenFeature([5], tf.string),
+                "item": tf.io.FixedLenFeature([15], tf.string),
+                "type": tf.io.FixedLenFeature([], tf.string),
+
+                "volume": tf.io.FixedLenFeature([], tf.float32),
+                "price": tf.io.FixedLenFeature([], tf.float32),
+                # 'user_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # query向量
+                # 'item_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # item向量
+                "label": tf.io.FixedLenFeature([], tf.int64),
+
+            }
+            features = tf.io.parse_single_example(buff, features)
+            labels = features.pop('label')
+            labels = tf.compat.v1.to_float(labels)
+            return features, labels
+
+    df.printSchema()
+
+    # df.write.mode(SaveMode.Overwrite).partitionBy("partitionColumn").format("tfrecord").option("recordType", "Example").save(output_dir)
+    df.write.mode("overwrite").format("tfrecord").option("recordType", "Example").save(path)
+
+    path2 = path+ "/*.tfrecord"
+    dataset = tf.data.TFRecordDataset(tf.compat.v1.gfile.Glob(path2))
+    train_dataset = dataset.map(parse_func).batch(1)
+    print(train_dataset)
+
 
 if __name__ == '__main__':
-    run()
+    run_hys()
