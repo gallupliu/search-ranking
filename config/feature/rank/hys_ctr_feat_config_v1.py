@@ -116,7 +116,7 @@ def build_hys_feat_columns(emb_dim=8):
             #     vocabulary_file='./ids.txt',
             #     num_oov_buckets=0)
             text_column = fc.sequence_categorical_column_with_vocabulary_file(
-                key=col, vocabulary_file='./char.txt',
+                key=col, vocabulary_file='./data/char.txt',
                 num_oov_buckets=5)
             feature_columns.append(fc.embedding_column(text_column, 30))
         feat_field_size = len(feature_columns)

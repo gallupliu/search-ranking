@@ -3,15 +3,17 @@ import numpy as np
 import pandas as pd
 import random
 import json
+import re
 import tensorflow as tf
 from run_ctr_model import census_text_input_fn_from_tfrecords
 from pyspark.sql.types import *
 from pyspark import SparkConf, SparkContext
-from pyspark.sql.functions import col, lit, split, udf, concat,concat_ws
+from pyspark.sql.functions import col, lit, split, udf, concat, concat_ws
 from pyspark.sql.types import ArrayType, DoubleType, FloatType, StringType, IntegerType
 
 from utils.utils import CreateSparkContex
 
+tf.enable_eager_execution()
 ROOT_PATH = './data/'
 TRAIN_RAW = ROOT_PATH + 'adult/adult.data'
 TEST_RAW = ROOT_PATH + 'adult/adult.test'
@@ -337,7 +339,7 @@ def run():
     if args.type == "text":
         lst = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         print(random.sample(lst, 4))
-        HEADER = HEADER +TEXT_FEATURE_NAMES+ EMBEDDING_FEATURE_NAMES
+        HEADER = HEADER + TEXT_FEATURE_NAMES + EMBEDDING_FEATURE_NAMES
         # random.randint(3,5)
         train_df['query'] = train_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
         test_df['query'] = test_df.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
@@ -373,17 +375,17 @@ def run():
 
     print("Converting Training Data Files")
     for input_csv_file in train_data_files:
-        create_tfrecords_file(input_csv_file,HEADER)
+        create_tfrecords_file(input_csv_file, HEADER)
     print("")
 
     print("Converting Validation Data Files")
     for input_csv_file in valid_data_files:
-        create_tfrecords_file(input_csv_file,HEADER)
+        create_tfrecords_file(input_csv_file, HEADER)
     print("")
 
     print("Converting Test Data Files")
     for input_csv_file in test_data_files:
-        create_tfrecords_file(input_csv_file,HEADER)
+        create_tfrecords_file(input_csv_file, HEADER)
 
     print('path:{0}'.format(ROOT_PATH + 'adult/train.tfrecords'))
     train_dataset = census_text_input_fn_from_tfrecords(ROOT_PATH + 'text/adult/train.tfrecords', 1, shuffle=True,
@@ -399,14 +401,15 @@ def run():
             print('dict:{0}'.format(train_dataset))
             print(session.run(train_dataset))
 
+
 def padding_text(df, column, length):
     def pad(column, length):
         if column is None:
-            return length * ['pad']
+            return length * ['<pad>']
         else:
             text_len = len(column)
             if text_len < length:
-                return column + ['pad'] * (length - text_len)
+                return column + ['<pad>'] * (length - text_len)
             elif text_len > length:
                 return column[:length]
             else:
@@ -418,11 +421,42 @@ def padding_text(df, column, length):
     return df
 
 
+pattern = re.compile(r'[+—！，。？?、~@#￥%…&*（）{}()；;：:[\]【】％※．<>《》\'\"\-―\\“”\|‘’=■0-9]+')
 
 
+class DataPreprocess():
+    def __init__(self, df):
+        self.word_index = self.build_vocab(df)
 
+    def build_vocab(self, df):
+        words = set()
+        for i in range(len(df)):
+            line = df.iloc[i,0]
+            for text in line:
+                new_line = re.sub(pattern, '', text).lower().strip()
+                line_words = new_line.split(" ")
+                for word in line_words:
+                    words.add(word)
 
+        # The first indices are reserved
+        word_index = {word: (i + 4) for i, word in enumerate(words)}
+        word_index["<pad>"] = 0
+        word_index["<start>"] = 1
+        word_index["<unk>"] = 2  # unknown
+        word_index["<unused>"] = 3
+        print(len(word_index))
+        return word_index
 
+    def encode_text(self, df, column):
+        def encode(text):
+            if isinstance(text, list):
+                return [self.word_index.get(i, 2) for i in text]
+            else:
+                print('text:{0}'.format(text))
+                return [0]
+        encode_udf = udf(encode,ArrayType(IntegerType()))
+        df = df.withColumn(column,encode_udf(df[column]))
+        return df
 
 
 def run_hys():
@@ -435,15 +469,17 @@ def run_hys():
                         help='the type of train model')
 
     args = parser.parse_args()
-    fields = [StructField("id", IntegerType()), StructField("keyword", StringType()),
-              StructField("title", StringType()), StructField("brand", StringType()),
-              StructField("tag", StringType()),
-              StructField("volume", FloatType()),
-              StructField("type", StringType()),
-              StructField("price", FloatType()),
-              # StructField("user_bert_emb", ArrayType(FloatType(), True)),
-              # StructField("item_bert_emb", ArrayType(FloatType(), True)),
-              StructField("label", IntegerType())]
+    fields = [
+        # StructField("id", IntegerType()),
+        StructField("keyword", StringType()),
+        StructField("title", StringType()), StructField("brand", StringType()),
+        StructField("tag", StringType()),
+        StructField("volume", FloatType()),
+        StructField("type", StringType()),
+        StructField("price", FloatType()),
+        # StructField("user_bert_emb", ArrayType(FloatType(), True)),
+        # StructField("item_bert_emb", ArrayType(FloatType(), True)),
+        StructField("label", IntegerType())]
     schema = StructType(fields)
     hsy_data = {
         "label": [0, 1, 0, 1, 1, 0, 1, 1, 0, 0],
@@ -451,10 +487,10 @@ def run_hys():
         "title": ["安 慕 希", "牛 奶", "牛", "奶 粉", "婴 儿 奶 粉", "液 态 奶", "牛 肉", "奶", "牛 肉 干", "牛 奶 口 味"],
         "brand": ["安 慕 希", "伊 利", "蒙 牛", "奶 粉", "婴 儿 奶 粉", "液 态 奶", "牛 肉", "奶", "牛 肉 干", "牛 奶 口 味"],
         "tag": ["酸 奶", "纯 牛 奶", "牛", "固 态 奶", "婴 儿 奶 粉", "液 态 奶", "牛 肉", "奶", "牛 肉 干", "牛 奶 口 味"],
-        "volume": [1, 2, 3, 4, 5, 4.3, 1.2, 4.5, 1.0, 0.8],
+        "volume": [0.1, 0.2, 0.3, 0.4, 0.5, 0.3, 0.2, 0.5, 0.99, 0.8],#[0,1)之间数据
         "type": [0, 1, 0, 1, 2, 1, 0, 0, 2, 1],
         "price": [10.0, 51.0, 20.0, 31.0, 42.0, 19.0, 30.0, 20.0, 21.0, 1.2],
-        "id": [39877457, 39877710, 39878084, 39878084, 39878084, 39877710, 39878084, 39877710, 39878084, 39878084],
+        # "id": [39877457, 39877710, 39878084, 39878084, 39878084, 39877710, 39878084, 39877710, 39878084, 39878084],
         # "all_topic_fav_7": ["1: 0.4074,177: 0.1217,502: 0.4826", "1: 0.4074,177: 0.1217,502: 0.4826",
         #                     "1: 0.4074,177: 0.1217,502: 0.4826", "1: 0.4074,177: 0.1217,502: 0.4826",
         #                     "1: 0.4074,177: 0.1217,502: 0.4826", "1: 0.4074,177: 0.1217,502: 0.4826",
@@ -465,20 +501,21 @@ def run_hys():
     }
 
     test_rows = []
-    for i in range(len(hsy_data["label"])):
-        test_row = []
-        test_row.append(hsy_data["id"][i])
-        test_row.append(hsy_data["keyword"][i])
-        test_row.append(hsy_data["title"][i])
-        test_row.append(hsy_data["brand"][i])
-        test_row.append(hsy_data["tag"][i])
-        test_row.append(float(hsy_data["volume"][i]))
-        test_row.append(hsy_data["type"][i])
-        test_row.append(hsy_data["price"][i])
-        # test_row.append(np.random.uniform(low=-0.1, high=0.1, size=10).tolist())
-        # test_row.append(np.random.uniform(low=-0.1, high=0.1, size=10).tolist())
-        test_row.append(hsy_data["label"][i])
-        test_rows.append(test_row)
+    for _ in range(100):
+        for i in range(len(hsy_data["label"])):
+            test_row = []
+            # test_row.append(hsy_data["id"][i])
+            test_row.append(hsy_data["keyword"][i])
+            test_row.append(hsy_data["title"][i])
+            test_row.append(hsy_data["brand"][i])
+            test_row.append(hsy_data["tag"][i])
+            test_row.append(float(hsy_data["volume"][i]))
+            test_row.append(hsy_data["type"][i])
+            test_row.append(hsy_data["price"][i])
+            # test_row.append(np.random.uniform(low=-0.1, high=0.1, size=10).tolist())
+            # test_row.append(np.random.uniform(low=-0.1, high=0.1, size=10).tolist())
+            test_row.append(hsy_data["label"][i])
+            test_rows.append(test_row)
 
     # conf = SparkConf().set("spark.jars", "/Users/gallup/study/search-ranking/config/spark-tfrecord_2.12-0.3.3_1.15.0.jar")
     #
@@ -488,55 +525,25 @@ def run_hys():
 
     df = spark.createDataFrame(rdd, schema)
     df.show()
-    path = './'+args.mode+"_feature.tfrecord"
+    path = './' + args.mode + "_feature.tfrecord"
     print('path:{0}'.format(path))
+    df.printSchema()
     if args.mode == "rank":
         df = df.withColumn('text', concat_ws(' ', col("keyword"), col("title"), col("brand"), col("tag")))
         df = df.withColumn('text', split(col('text'), ' '))
         df = padding_text(df, 'text', 20).drop(*["keyword", "title", "brand", "tag"])
+        df.write.mode("overwrite").format("tfrecord").option("recordType", "Example").save(path)
 
         def parse_func(buff):
             features = {
                 # int
-                "id": tf.io.FixedLenFeature([], tf.int64),
+                # "id": tf.io.FixedLenFeature([], tf.int64),
                 # string
                 # "keyword": tf.io.FixedLenFeature([5], tf.string),
                 # "title": tf.io.FixedLenFeature([5], tf.string),
                 # "brand": tf.io.FixedLenFeature([5], tf.string),
                 # "tag": tf.io.FixedLenFeature([5], tf.string),
                 "text": tf.io.FixedLenFeature([20], tf.string),
-                "type": tf.io.FixedLenFeature([], tf.string),
-
-                "volume": tf.io.FixedLenFeature([], tf.float32),
-                "price": tf.io.FixedLenFeature([], tf.float32),
-                'user_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # query向量
-                'item_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # item向量
-                "label": tf.io.FixedLenFeature([], tf.int64),
-
-            }
-            features = tf.io.parse_single_example(buff, features)
-            labels = features.pop('label')
-            labels = tf.compat.v1.to_float(labels)
-            return features, labels
-
-    else:
-
-        df = df.withColumn('item', concat_ws(' ', col("title"), col("brand"), col("tag")))
-        df = df.withColumn('item', split(col('text'), ' '))
-        df = padding_text(df, 'item', 15).drop(*["title", "brand", "tag"])
-        df = df.withColumn('keyword', split(col('keyword'), ' '))
-        df = padding_text(df, 'keyword', 5).drop(*['keyword'])
-
-        def parse_func(buff):
-            features = {
-                # int
-                "id": tf.io.FixedLenFeature([], tf.int64),
-                # string
-                "keyword": tf.io.FixedLenFeature([5], tf.string),
-                # "title": tf.io.FixedLenFeature([5], tf.string),
-                # "brand": tf.io.FixedLenFeature([5], tf.string),
-                # "tag": tf.io.FixedLenFeature([5], tf.string),
-                "item": tf.io.FixedLenFeature([15], tf.string),
                 "type": tf.io.FixedLenFeature([], tf.string),
 
                 "volume": tf.io.FixedLenFeature([], tf.float32),
@@ -551,15 +558,117 @@ def run_hys():
             labels = tf.compat.v1.to_float(labels)
             return features, labels
 
+    else:
+
+        df = df.withColumn('item', concat_ws(' ', col("title"), col("brand"), col("tag")))
+        df = df.withColumn('item', split(col('item'), ' '))
+        df = padding_text(df, 'item', 15).drop(*["title", "brand", "tag"])
+        data_preprocess = DataPreprocess(df.select("item").toPandas())
+
+        df = df.withColumn('keyword', split(col('keyword'), ' '))
+        df = padding_text(df, 'keyword', 5)
+        df = data_preprocess.encode_text(df, 'item')
+        df = data_preprocess.encode_text(df, 'keyword')
+        df.show()
+        df.write.mode("overwrite").format("tfrecord").option("recordType", "Example").save(path)
+
+        def hys_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_size):
+            def _parse_func(record):
+                features = {
+                    # int
+                    # "id": tf.io.FixedLenFeature([], tf.int64),
+                    "keyword": tf.io.FixedLenFeature([5], tf.int64),
+                    "item": tf.io.FixedLenFeature([15], tf.int64),
+
+                    # string
+                    # "keyword": tf.io.FixedLenFeature([5], tf.string),
+                    # "title": tf.io.FixedLenFeature([5], tf.string),
+                    # "brand": tf.io.FixedLenFeature([5], tf.string),
+                    # "tag": tf.io.FixedLenFeature([5], tf.string),
+                    # "item": tf.io.FixedLenFeature([15], tf.string),
+                    "type": tf.io.FixedLenFeature([], tf.string),
+
+                    "volume": tf.io.FixedLenFeature([], tf.float32),
+                    "price": tf.io.FixedLenFeature([], tf.float32),
+                    # 'user_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # query向量
+                    # 'item_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # item向量
+                    "label": tf.io.FixedLenFeature([], tf.int64),
+
+                }
+                features = tf.io.parse_single_example(record, features)
+                labels = features.pop('label')
+                labels = tf.compat.v1.to_float(labels)
+                return features, labels
+
+            # tf.compat.v1.gfile.Glob(path2)
+            print(tf.io.gfile.listdir)
+            print('data_file:{0}'.format(data_file))
+            # assert tf.io.gfile.exists(tf.io.gfile.glob(data_file)), ('no file named: ' + str(data_file))
+            dataset = tf.data.TFRecordDataset(tf.io.gfile.glob(data_file)).map(_parse_func,
+                                                                               num_parallel_calls=10)
+            if shuffle:
+                dataset = dataset.shuffle(buffer_size=5000)
+            dataset = dataset.repeat(num_epochs)
+            dataset = dataset.batch(batch_size)
+            # iterator = dataset.make_one_shot_iterator()
+            # print('ds:{0}'.format(dataset))
+            # features, labels = iterator.get_next()
+            # labels = tf.compat.v1.to_float(labels)
+            # return features, labels
+            return dataset
+
+        # def parse_func(buff):
+        #     features = {
+        #         # int
+        #         # "id": tf.io.FixedLenFeature([], tf.int64),
+        #         # string
+        #         "keyword": tf.io.FixedLenFeature([5], tf.string),
+        #         # "title": tf.io.FixedLenFeature([5], tf.string),
+        #         # "brand": tf.io.FixedLenFeature([5], tf.string),
+        #         # "tag": tf.io.FixedLenFeature([5], tf.string),
+        #         "item": tf.io.FixedLenFeature([15], tf.string),
+        #         "type": tf.io.FixedLenFeature([], tf.string),
+        #
+        #         "volume": tf.io.FixedLenFeature([], tf.float32),
+        #         "price": tf.io.FixedLenFeature([], tf.float32),
+        #         # 'user_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # query向量
+        #         # 'item_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # item向量
+        #         "label": tf.io.FixedLenFeature([], tf.int64),
+        #
+        #     }
+        #     features = tf.io.parse_single_example(buff, features)
+        #     labels = features.pop('label')
+        #     labels = tf.compat.v1.to_float(labels)
+        #     return features, labels
+
     df.printSchema()
 
     # df.write.mode(SaveMode.Overwrite).partitionBy("partitionColumn").format("tfrecord").option("recordType", "Example").save(output_dir)
     df.write.mode("overwrite").format("tfrecord").option("recordType", "Example").save(path)
 
-    path2 = path+ "/*.tfrecord"
-    dataset = tf.data.TFRecordDataset(tf.compat.v1.gfile.Glob(path2))
-    train_dataset = dataset.map(parse_func).batch(1)
-    print(train_dataset)
+    path2 = path + "/*.tfrecord"
+    print(path2)
+    train_ds = hys_input_fn_from_tfrecords(path2, 1, shuffle=True, batch_size=4)
+    print(train_ds)
+    for x in train_ds.take(1):
+        print('x:{0}'.format(x))
+        # print(y)
+    print('end ds')
+    # dataset = tf.data.TFRecordDataset(tf.compat.v1.gfile.Glob(path2))
+    # train_dataset = dataset.map(parse_func).batch(1)
+    # dataset = dataset.repeat(1)
+    # dataset = dataset.batch(4)
+    # iterator = dataset.make_one_shot_iterator()
+    # print('ds:{0}'.format(dataset))
+    # tf.compat.v1.disable_eager_execution()
+    # features, labels = iterator.get_next()
+    # labels = tf.compat.v1.to_float(labels)
+    # print(train_dataset)
+    #
+    # for x in dataset.take(1):
+    #     print('x:{0}'.format(x))
+    #     # print(y)
+    # print('end ds')
 
 
 if __name__ == '__main__':

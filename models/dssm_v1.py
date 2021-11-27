@@ -64,7 +64,7 @@ def get_item_embed(file_names):
     item_id2idx = tf.lookup.StaticHashTable(
         tf.lookup.KeyValueTensorInitializer(
             keys=item_id,
-            values=range(1, len(item_id) + 1),
+            values=range(0, len(item_id) ),
             key_dtype=tf.string,
             value_dtype=tf.int32),
         default_value=0)

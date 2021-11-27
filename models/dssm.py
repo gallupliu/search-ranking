@@ -1,15 +1,15 @@
-from collections import namedtuple, OrderedDict
-import datetime
 import json
+import datetime
 import math
-import numpy as np
 import os
+from collections import namedtuple, OrderedDict
 import tensorflow as tf
-from tensorflow.keras.layers import *
-import tensorflow.keras.backend as K
-from tensorflow.keras import layers
+import numpy as np
 from tensorflow.keras.models import Model
 from tensorflow.keras.callbacks import TensorBoard
+import pandas as pd
+from tensorflow.keras.layers import *
+
 
 embedding_dim = 32
 # 'act', 'client_id', 'post_id', 'topic_id','post_type','client_type', 'follow_topic_id', 'all_topic_fav_7',
@@ -18,7 +18,7 @@ embedding_dim = 32
 # COL_NAME = ['act', 'client_id', 'post_id', 'client_type', 'follow_topic_id', 'all_topic_fav_7', 'topic_id',
 #             ]
 DEFAULT_VALUES = [[0], [0.0], [''], [''], [''], [''], [''], [''], ['']]
-COL_NAME = ['act', 'client_type', "keyword", 'post_id', 'post_type', 'topic_id', 'follow_topic_id', 'all_topic_fav_7',
+COL_NAME = ['label', 'client_id', "keyword", 'post_id', 'post_type', 'topic_id', 'follow_topic_id', 'all_topic_fav_7',
             'click_seq'
             ]
 
@@ -28,7 +28,7 @@ VarLenSparseFeat = namedtuple('VarLenSparseFeat',
                               ['name', 'voc_size', 'share_embed', 'weight_name', 'embed_dim', 'maxlen', 'dtype'])
 
 feature_columns = [SparseFeat(name="topic_id", voc_size=700, share_embed=None, embed_dim=16, dtype='string'),
-                   SparseFeat(name='client_type', voc_size=2, share_embed=None, embed_dim=8, dtype='float32'),
+                   SparseFeat(name='client_id', voc_size=2, share_embed=None, embed_dim=8, dtype='float32'),
                    VarLenSparseFeat(name="follow_topic_id", voc_size=700, share_embed='topic_id', weight_name=None,
                                     embed_dim=16, maxlen=20, dtype='string'),
                    VarLenSparseFeat(name="all_topic_fav_7", voc_size=700, share_embed='topic_id',
@@ -42,7 +42,7 @@ feature_columns = [SparseFeat(name="topic_id", voc_size=700, share_embed=None, e
                    ]
 
 # 用户特征及贴子特征
-user_feature_columns_name = ["follow_topic_id", 'all_topic_fav_7', 'client_type', 'client_embed',
+user_feature_columns_name = ["follow_topic_id", 'all_topic_fav_7', 'client_id', 'client_embed',
                              'keyword_embed']
 item_feature_columns_name = ["topic_id", "post_id", "post_type", 'item_embed']
 user_feature_columns = [col for col in feature_columns if col.name in user_feature_columns_name]
@@ -85,7 +85,7 @@ CHAR_ID2IDX, CHAR_EMBEDDING = get_item_embed(char_file_names)
 
 # 定义离散特征集合 ，离散特征vocabulary
 DICT_CATEGORICAL = {"topic_id": [str(i) for i in range(0, 700)],
-                    "client_type": [0, 1]
+                    "client_id": [0, 1]
                     }
 
 
@@ -153,7 +153,7 @@ def _parse_function(example_proto):
         else:
             raise Exception("unknown feature_columns....")
 
-    label = parsed['act']
+    label = parsed['label']
 
     return feature_dict, label
 
@@ -678,7 +678,7 @@ tf.keras.models.save_model(item_embedding_model, model_save_path + "/dssmItem/00
 # user_query = {'all_topic_fav_7': np.array([['294', '88', '60', '1']]),
 #               'all_topic_fav_7_weight': np.array([[0.0897, 0.2464, 0.0928, 0.5711, ]]),
 #               'follow_topic_id': np.array([['75', '73', '74', '92', '62', '37', '35', '34', '33', ]),
-#               'client_type': np.array([0.]),
+#               'client_id': np.array([0.]),
 #               'client_embed': np.array([[-9.936600e-02, 2.752400e-01, -4.314620e-01, 3.393100e-02,
 #                                          -5.263000e-02, -4.490300e-01, -3.641180e-01, -3.545410e-01,
 #                                          -2.315470e-01, 4.641480e-01, 3.965120e-01, -1.670170e-01,
