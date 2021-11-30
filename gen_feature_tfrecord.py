@@ -431,7 +431,7 @@ class DataPreprocess():
     def build_vocab(self, df):
         words = set()
         for i in range(len(df)):
-            line = df.iloc[i,0]
+            line = df.iloc[i, 0]
             for text in line:
                 new_line = re.sub(pattern, '', text).lower().strip()
                 line_words = new_line.split(" ")
@@ -454,8 +454,9 @@ class DataPreprocess():
             else:
                 print('text:{0}'.format(text))
                 return [0]
-        encode_udf = udf(encode,ArrayType(IntegerType()))
-        df = df.withColumn(column,encode_udf(df[column]))
+
+        encode_udf = udf(encode, ArrayType(IntegerType()))
+        df = df.withColumn(column, encode_udf(df[column]))
         return df
 
 
@@ -487,7 +488,7 @@ def run_hys():
         "title": ["安 慕 希", "牛 奶", "牛", "奶 粉", "婴 儿 奶 粉", "液 态 奶", "牛 肉", "奶", "牛 肉 干", "牛 奶 口 味"],
         "brand": ["安 慕 希", "伊 利", "蒙 牛", "奶 粉", "婴 儿 奶 粉", "液 态 奶", "牛 肉", "奶", "牛 肉 干", "牛 奶 口 味"],
         "tag": ["酸 奶", "纯 牛 奶", "牛", "固 态 奶", "婴 儿 奶 粉", "液 态 奶", "牛 肉", "奶", "牛 肉 干", "牛 奶 口 味"],
-        "volume": [0.1, 0.2, 0.3, 0.4, 0.5, 0.3, 0.2, 0.5, 0.99, 0.8],#[0,1)之间数据
+        "volume": [0.1, 0.2, 0.3, 0.4, 0.5, 0.3, 0.2, 0.5, 0.99, 0.8],  # [0,1)之间数据
         "type": [0, 1, 0, 1, 2, 1, 0, 0, 2, 1],
         "price": [10.0, 51.0, 20.0, 31.0, 42.0, 19.0, 30.0, 20.0, 21.0, 1.2],
         # "id": [39877457, 39877710, 39878084, 39878084, 39878084, 39877710, 39878084, 39877710, 39878084, 39878084],
@@ -532,6 +533,7 @@ def run_hys():
         df = df.withColumn('text', concat_ws(' ', col("keyword"), col("title"), col("brand"), col("tag")))
         df = df.withColumn('text', split(col('text'), ' '))
         df = padding_text(df, 'text', 20).drop(*["keyword", "title", "brand", "tag"])
+        df = df.select(*["text", "type", "volume", "price", "label"])
         df.write.mode("overwrite").format("tfrecord").option("recordType", "Example").save(path)
 
         def parse_func(buff):
@@ -569,6 +571,7 @@ def run_hys():
         df = padding_text(df, 'keyword', 5)
         df = data_preprocess.encode_text(df, 'item')
         df = data_preprocess.encode_text(df, 'keyword')
+        df = df.select(*["keyword", "item", "type", "volume", "price", "label"])
         df.show()
         df.write.mode("overwrite").format("tfrecord").option("recordType", "Example").save(path)
 
@@ -596,9 +599,18 @@ def run_hys():
 
                 }
                 features = tf.io.parse_single_example(record, features)
+                # 解析顺序乱了，重新定义顺序
+                new_features = {}
+                new_features['keyword'] =features.pop('keyword')
+                new_features["item"] = features.pop("item")
+                new_features["type"] = features.pop("type")
+                new_features["volume"] = features.pop("volume")
+                new_features['price'] = features.pop('price')
+                print('feature:{}'.format(features))
+                print('new_feature:{}'.format(new_features))
                 labels = features.pop('label')
                 labels = tf.compat.v1.to_float(labels)
-                return features, labels
+                return new_features, labels
 
             # tf.compat.v1.gfile.Glob(path2)
             print(tf.io.gfile.listdir)
@@ -616,30 +628,6 @@ def run_hys():
             # labels = tf.compat.v1.to_float(labels)
             # return features, labels
             return dataset
-
-        # def parse_func(buff):
-        #     features = {
-        #         # int
-        #         # "id": tf.io.FixedLenFeature([], tf.int64),
-        #         # string
-        #         "keyword": tf.io.FixedLenFeature([5], tf.string),
-        #         # "title": tf.io.FixedLenFeature([5], tf.string),
-        #         # "brand": tf.io.FixedLenFeature([5], tf.string),
-        #         # "tag": tf.io.FixedLenFeature([5], tf.string),
-        #         "item": tf.io.FixedLenFeature([15], tf.string),
-        #         "type": tf.io.FixedLenFeature([], tf.string),
-        #
-        #         "volume": tf.io.FixedLenFeature([], tf.float32),
-        #         "price": tf.io.FixedLenFeature([], tf.float32),
-        #         # 'user_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # query向量
-        #         # 'item_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # item向量
-        #         "label": tf.io.FixedLenFeature([], tf.int64),
-        #
-        #     }
-        #     features = tf.io.parse_single_example(buff, features)
-        #     labels = features.pop('label')
-        #     labels = tf.compat.v1.to_float(labels)
-        #     return features, labels
 
     df.printSchema()
 
