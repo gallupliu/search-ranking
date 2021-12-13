@@ -13,10 +13,10 @@ from config.feature.match.census_match_feat_config_v1 import build_census_feat_c
 from models.wdl_v1 import wdl_estimator
 from models.dssm_v2 import dssm_model_fn
 from models.keras.models.dssm import DSSM
+from models.keras.models.que2search import Que2Search
 from tensorflow import keras
 from tensorflow.keras.metrics import AUC
-from tensorflow.keras.models import Model
-from config.feature.match.hys_match_feat_config import CONFIG
+from config.feature.match.hys_match_feat_config import FEAT_CONFIG
 from datetime import datetime
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -194,12 +194,19 @@ def hys_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_size):
         features = {
             # int
             # "id": tf.io.FixedLenFeature([], tf.int64),
-            # string
             "keyword": tf.io.FixedLenFeature([5], tf.int64),
+            "keyword_input_ids": tf.io.FixedLenFeature([10], tf.int64),
+            "keyword_attention_mask": tf.io.FixedLenFeature([10], tf.int64),
+            "item": tf.io.FixedLenFeature([15], tf.int64),
+            "item_input_ids": tf.io.FixedLenFeature([20], tf.int64),
+            "item_attention_mask": tf.io.FixedLenFeature([20], tf.int64),
+
+            # string
+            # "keyword": tf.io.FixedLenFeature([5], tf.string),
             # "title": tf.io.FixedLenFeature([5], tf.string),
             # "brand": tf.io.FixedLenFeature([5], tf.string),
             # "tag": tf.io.FixedLenFeature([5], tf.string),
-            "item": tf.io.FixedLenFeature([15], tf.int64),
+            # "item": tf.io.FixedLenFeature([15], tf.string),
             "type": tf.io.FixedLenFeature([], tf.string),
 
             "volume": tf.io.FixedLenFeature([], tf.float32),
@@ -212,9 +219,9 @@ def hys_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_size):
         features = tf.io.parse_single_example(record, features)
         # 解析顺序乱了，重新定义顺序
         new_features = {}
-        for feat in CONFIG['user_cols']:
+        for feat in FEAT_CONFIG['user_cols']:
             new_features[feat['name']] = features.pop(feat['name'])
-        for feat in CONFIG['item_cols']:
+        for feat in FEAT_CONFIG['item_cols']:
             new_features[feat['name']] = features.pop(feat['name'])
         # new_features["item"] = features.pop("item")
         # new_features["type"] = features.pop("type")
@@ -242,6 +249,8 @@ def hys_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_size):
     # labels = tf.compat.v1.to_float(labels)
     # return features, labels
     return dataset
+
+
 def export_model(model):
     sess = tf.compat.v1.InteractiveSession()
     sess.run(tf.compat.v1.global_variables_initializer())
@@ -277,83 +286,38 @@ def export_model(model):
                                          [tf.saved_model.tag_constants.SERVING],
                                          signature_def_map={'predict': prediction_signature})
     builder.save(as_text=True)
-def train_hys_data(config):
-    # CONFIG["categorical_cols"]["UserID_idx"] = num_users
-    # CONFIG["categorical_cols"]["Gender_idx"] = num_genders
-    # CONFIG["categorical_cols"]["Age_idx"] = num_ages
-    # CONFIG["categorical_cols"]["Occupation_idx"] = num_occupations
-    # CONFIG["categorical_cols"]["MovieID_idx"] = num_movies
-    # CONFIG["categorical_cols"]["Genres_idx"] = num_genres
-    CONFIG["model_name"] = "dssm"
-    CONFIG["vocab_size"] = 25
-    CONFIG["num_sampled"] = 1
-    CONFIG["l2_reg_embedding"] = 1e-6
-    CONFIG["embed_size"] = 50
 
-    train_ds = hys_input_fn_from_tfrecords("./match_feature.tfrecord/*.tfrecord", 1, shuffle=True, batch_size=4)
+
+def train_hys_data(model_config):
+    CONFIG = {**FEAT_CONFIG, **model_config}
+
+    train_ds = hys_input_fn_from_tfrecords(CONFIG['train_file'], 1, shuffle=True, batch_size=4)
     print(train_ds)
     for x in train_ds.take(1):
         print('x:{0}'.format(x))
         # print(y)
     print('end ds')
-    # model = build_mlp_model(CONFIG)
-    model = DSSM(CONFIG)
+    if CONFIG["model_name"] == "dssm":
+        model = DSSM(CONFIG)
+    elif CONFIG["model_name"] == "que2search":
+        model = Que2Search(CONFIG)
     model = model.summary()
     model.summary()
     model.compile(loss=tf.keras.losses.MeanSquaredError(),
                   optimizer=keras.optimizers.RMSprop(), metrics=[AUC()])
 
-    TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S/}".format(datetime.now())
-    # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir="./logs/logs_" + TIMESTAMP)
-    # history = model.fit(train_ds,
-    #                     epochs=5, steps_per_epoch=30,
-    #                     callbacks=[tensorboard_callback]
-    #                     )
-    #
-    model_file_path = './pb/match/' + CONFIG["model_name"] + '/'
-    # # Calling `save('my_model')` creates a SavedModel folder `my_model`.
-    # model.save(model_file_path)
-
-    # module = MyModule(model, 1234)
-    # tf.saved_model.save(module, model_file_path, signatures={"score": module.score})
-    model_file_path_test = './pb/match/' + CONFIG["model_name"] + '/test/'
-    @tf.function
-    def serve(*args, **kwargs):
-        outputs = model(*args, **kwargs)
-        # Apply postprocessing steps, or add additional outputs.
-        ...
-        return outputs
-
-    # arg_specs is `[tf.TensorSpec(...), ...]`. kwarg_specs, in this example, is
-    # an empty dict since functional models do not use keyword arguments.
-    arg_specs, kwarg_specs = model.save_spec()
-
-    model.save(model_file_path_test , signatures={
-        'serving_default': serve.get_concrete_function(*arg_specs, **kwarg_specs)
-    })
-    # import tempfile
-    # model_dir = tempfile.mkdtemp()
-    # # export_outputs = {
-    # #                   'score': tf.estimator.export.ClassificationOutput}
-    # keras_estimator = tf.keras.estimator.model_to_estimator(
-    #     keras_model=model, model_dir=model_dir)
-    # # estimator_train_result = keras_estimator.train(input_fn=lambda: input_fn(train_images, train_labels, EPOCHS, BATCH_SIZE))
-    # keras_estimator.train(input_fn=lambda:hys_input_fn_from_tfrecords("./match_feature.tfrecord/*.tfrecord", 1, shuffle=True, batch_size=4), steps=500)
-    # eval_result = keras_estimator.evaluate(input_fn=lambda:hys_input_fn_from_tfrecords("./match_feature.tfrecord/*.tfrecord", 1, shuffle=False, batch_size=4), steps=10)
-    # print('Eval result: {}'.format(eval_result))
-
-
     test_input = {
-        "keyword": np.asarray([[11, 4, 0, 0, 0],
-                               [11, 4, 0, 0, 0],
-                               [10, 19, 23, 0, 0],
-                               [15, 21, 24, 0, 0]
-                               ]),
         "item": np.asarray([[11, 4, 11, 4, 11, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                             [11, 4, 11, 4, 11, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                             [10, 19, 23, 10, 19, 23, 16, 24, 0, 0, 0, 0, 0, 0, 0],
                             [15, 21, 24, 15, 21, 24, 15, 21, 24, 0, 0, 0, 0, 0, 0]
                             ]),
+        "keyword": np.asarray([[11, 4, 0, 0, 0],
+                               [11, 4, 0, 0, 0],
+                               [10, 19, 23, 0, 0],
+                               [15, 21, 24, 0, 0]
+                               ]),
+
         "volume": np.asarray([[0.2],
                               [0.2], [0.1], [0.3]
                               ]),  # [0,1)之间数据
@@ -365,24 +329,89 @@ def train_hys_data(config):
                              ]),
     }
 
-    # 输出节点名字要和pb模型里对应
     # test_target = {"output_1": np.asarray([[1.], [1.], [0.], [0.]])}
     test_target = {"tf.reshape_2": np.asarray([[1.], [1.], [0.], [0.]])}
+
+    TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S/}".format(datetime.now())
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir="./logs/logs_" + TIMESTAMP)
+    model_file_path = './pb/match/' + CONFIG["model_name"] + '/'
+    model_file_path_test = './pb/match/' + CONFIG["model_name"] + '/test/'
+    # history = model.fit(train_ds,
+    #                     epochs=5, steps_per_epoch=30,
+    #                     callbacks=[tensorboard_callback]
+    #                     )
+    #
+    #
+    # # # Calling `save('my_model')` creates a SavedModel folder `my_model`.
+    # model.save(model_file_path)
+    # It can be used to reconstruct the model identically.
+    # reconstructed_model = tf.keras.models.load_model(model_file_path)
+    #
+    # # Let's check:
+    # #
+    # raw_predict_label = model.predict(test_input, callbacks=[tensorboard_callback])
+    # print('recon')
+    # reconstructed_predict_label = reconstructed_model.predict(test_input, callbacks=[tensorboard_callback])
+    # print('raw:{0}'.format(raw_predict_label))
+    # print('reconstructed:{0}'.format(reconstructed_predict_label))
+    # # print("input shape:", test_input["item"].shape)
+    # # print("predictions shape:", raw_predict_label.shape)
+    # print(np.testing.assert_allclose(
+    #     raw_predict_label,
+    #     reconstructed_predict_label
+    # ))
+
+    # The reconstructed model is already compiled and has retrained the optimizer
+    # state, so training can resume:
+    print('retrained')
+    # reconstructed_model.fit(test_input, test_target)
+
+    #
+    # @tf.function
+    # def serve(*args, **kwargs):
+    #     outputs = model(*args, **kwargs)
+    #     # Apply postprocessing steps, or add additional outputs.
+    #     ...
+    #     return outputs
+    #
+    # # arg_specs is `[tf.TensorSpec(...), ...]`. kwarg_specs, in this example, is
+    # # an empty dict since functional models do not use keyword arguments.
+    # arg_specs, kwarg_specs = model.save_spec()
+    #
+    # model.save(model_file_path, signatures={
+    #     'serving_default': serve.get_concrete_function(*arg_specs, **kwarg_specs)
+    # })
+    #
+    # print('#'*50)
+    import tempfile
+    model_dir = tempfile.mkdtemp()
+    # export_outputs = {
+    #                   'score': tf.estimator.export.ClassificationOutput}
+    keras_estimator = tf.keras.estimator.model_to_estimator(
+        keras_model=model, model_dir=model_dir)
+    # estimator_train_result = keras_estimator.train(input_fn=lambda: input_fn(train_images, train_labels, EPOCHS, BATCH_SIZE))
+    keras_estimator.train(input_fn=lambda:hys_input_fn_from_tfrecords("./match_feature.tfrecord/*.tfrecord", 1, shuffle=True, batch_size=4), steps=500)
+    eval_result = keras_estimator.evaluate(input_fn=lambda:hys_input_fn_from_tfrecords("./match_feature.tfrecord/*.tfrecord", 1, shuffle=False, batch_size=4), steps=10)
+    print('Eval result: {}'.format(eval_result))
+
+
+    # 输出节点名字要和pb模型里对应
+
+
     # 由模型生成预测
     def predict_input_fn(features, batch_size=256):
         """An input function for prediction."""
         # 将输入转换为无标签数据集。
         return tf.data.Dataset.from_tensor_slices(dict(features)).batch(batch_size)
 
-    # predictions = keras_estimator.predict(
-    #     input_fn=lambda: predict_input_fn(test_input))
 
-    # columns = ARGS['user_columns'] + ARGS['item_columns']
-    # feature_spec = tf.feature_column.make_parse_example_spec(feature_columns=columns)
-    # print('feature_spec:{0}'.format(feature_spec))
-    # serving_input_fn = tf.estimator.export.build_parsing_serving_input_receiver_fn(feature_spec)
-    # model.export_savedmodel(EXPORT_PATH, serving_input_fn)
-
+    #
+    # # columns = ARGS['user_columns'] + ARGS['item_columns']
+    # # feature_spec = tf.feature_column.make_parse_example_spec(feature_columns=columns)
+    # # print('feature_spec:{0}'.format(feature_spec))
+    # # serving_input_fn = tf.estimator.export.build_parsing_serving_input_receiver_fn(feature_spec)
+    # # model.export_savedmodel(EXPORT_PATH, serving_input_fn)
+    #
     def serving_input_fn():
 
         feature_spec = {
@@ -405,37 +434,21 @@ def train_hys_data(config):
         }
         logging.debug("feature spec: %s", feature_spec)
         return tf.estimator.export.build_parsing_serving_input_receiver_fn(feature_spec)()
-    #
-    # keras_estimator.export_saved_model(model_file_path_test, serving_input_fn)
-    # for pred_dict, expec in zip(predictions, test_target):
-    #     class_id = pred_dict['class_ids'][0]
-        # probability = pred_dict['probabilities'][class_id]
-        #
-        # print('Prediction is "{}" ({:.1f}%), expected "{}"'.format(
-        #     SPECIES[class_id], 100 * probability, expec))
 
-    # It can be used to reconstruct the model identically.
-    reconstructed_model = keras.models.load_model(model_file_path)
+    keras_estimator.export_saved_model(model_file_path_test, serving_input_fn)
+    predictions = keras_estimator.predict(
+        input_fn=lambda: predict_input_fn(test_input))
+    for pred_dict, expec in zip(predictions, test_target):
+        score = pred_dict['tf.reshape_2']
+        print('score:{0}'.format(score))
 
-    # Let's check:
 
-    # raw_predict_label = model.predict(test_input, callbacks=[tensorboard_callback])
-    # reconstructed_predict_label = reconstructed_model.predict(test_input, callbacks=[tensorboard_callback])
-    # print('raw:{0}'.format(raw_predict_label))
-    # print('reconstructed:{0}'.format(reconstructed_predict_label))
-    # # print("input shape:", test_input["item"].shape)
-    # # print("predictions shape:", raw_predict_label.shape)
-    # print(np.testing.assert_allclose(
-    #     raw_predict_label,
-    #     reconstructed_predict_label
-    # ))
+    # print('Prediction is "{}" ({:.1f}%), expected "{}"'.format(
+    #     SPECIES[class_id], 100 * probability, expec))
 
-    # The reconstructed model is already compiled and has retrained the optimizer
-    # state, so training can resume:
-    # print('retrained')
-    reconstructed_model.fit(test_input, test_target)
 
-    # todo 1、解决输入batch 输出只有一个的问题 2、user侧和item分别导出模型 3、添加transformer和attention fusion 4、实现java的serving和local调用
+
+    # todo 1、batch内随机负采样 3、添加transformer和attention fusion 4、实现java的serving和local调用
 
     # user_embed_model = Model(inputs=model.user_input, outputs=model.user_embeding)
     # item_embed_model = Model(inputs=model.item_input, outputs=model.item_embeding)
@@ -471,6 +484,7 @@ def train_hys_data(config):
     # user_embs = tf.squeeze(user_embs)
     # item_embs = tf.squeeze(item_embs)
     # print("user embed:{0}".format(user_embs))
+
 
 
 if __name__ == '__main__':

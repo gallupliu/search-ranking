@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Layer, Dense, Dropout, LayerNormalization, Conv1D, GlobalAveragePooling1D, \
-    GlobalMaxPooling1D, Concatenate
+    GlobalMaxPooling1D, Concatenate,Lambda
 from tensorflow.keras.initializers import RandomNormal
 from tensorflow.keras.initializers import Zeros
 
@@ -18,6 +18,9 @@ class DNN(Layer):
         self.activation = activation
         self.dnn_dropout = dnn_dropout
         super(DNN, self).__init__(**kwargs)
+        for unit in self.hidden_units:
+            print( self.hidden_units,unit,type(unit),self.activation)
+            Dense(units=unit, activation=self.activation)
         self.dnn_network = [Dense(units=unit, activation=self.activation) for unit in self.hidden_units]
         self.dropout = Dropout(self.dnn_dropout)
 
@@ -34,6 +37,72 @@ class DNN(Layer):
                        'dnn_dropout': self.dnn_dropout})
         return config
 
+
+
+
+class NegativeCosineLayer():
+    """ 自定义batch内负采样并做cosine相似度的层 """
+    def __init__(self, neg,batch_size,**kwargs):
+        super(NegativeCosineLayer, self).__init__(**kwargs)
+        self.neg =neg
+        self.batch_size = batch_size
+
+    def __call__(self, inputs):
+        def _cosine(x):
+            query_encoder, doc_encoder = x
+            doc_encoder_fd = doc_encoder
+            for i in range(self.neg):
+                ss = tf.gather(doc_encoder, tf.random.shuffle(tf.range(tf.shape(doc_encoder)[0])))
+                doc_encoder_fd = tf.concat([doc_encoder_fd, ss], axis=0)
+            query_norm = tf.tile(tf.sqrt(tf.reduce_sum(tf.square(query_encoder), axis=1, keepdims=True)), [self.neg + 1, 1])
+            doc_norm = tf.sqrt(tf.reduce_sum(tf.square(doc_encoder_fd), axis=1, keepdims=True))
+            query_encoder_fd = tf.tile(query_encoder, [self.neg + 1, 1])
+            prod = tf.reduce_sum(tf.multiply(query_encoder_fd, doc_encoder_fd, name="sim-multiply"), axis=1,
+                                 keepdims=True)
+            norm_prod = tf.multiply(query_norm, doc_norm)
+            cos_sim_raw = tf.truediv(prod, norm_prod)
+            cos_sim = tf.transpose(tf.reshape(tf.transpose(cos_sim_raw), [self.neg + 1, -1])) * 20
+
+            prob = tf.nn.softmax(cos_sim, name="sim-softmax")
+            hit_prob = tf.slice(prob, [0, 0], [-1, 1], name="sim-slice")
+            loss = -tf.reduce_mean(tf.log(hit_prob), name="sim-mean")
+            return loss
+
+        output_shape = (1,)
+        value = Lambda(_cosine, output_shape=output_shape)([inputs[0], inputs[1]])
+        return value
+
+class NegativeCosineLayer():
+    """ 自定义batch内负采样并做cosine相似度的层 """
+    def __init__(self, neg,batch_size,**kwargs):
+        super(NegativeCosineLayer, self).__init__(**kwargs)
+        self.neg =neg
+        self.batch_size = batch_size
+
+    def __call__(self, inputs):
+        def _cosine(x):
+            query_encoder, doc_encoder = x
+            doc_encoder_fd = doc_encoder
+            for i in range(self.neg):
+                ss = tf.gather(doc_encoder, tf.random.shuffle(tf.range(tf.shape(doc_encoder)[0])))
+                doc_encoder_fd = tf.concat([doc_encoder_fd, ss], axis=0)
+            query_norm = tf.tile(tf.sqrt(tf.reduce_sum(tf.square(query_encoder), axis=1, keepdims=True)), [self.neg + 1, 1])
+            doc_norm = tf.sqrt(tf.reduce_sum(tf.square(doc_encoder_fd), axis=1, keepdims=True))
+            query_encoder_fd = tf.tile(query_encoder, [self.neg + 1, 1])
+            prod = tf.reduce_sum(tf.multiply(query_encoder_fd, doc_encoder_fd, name="sim-multiply"), axis=1,
+                                 keepdims=True)
+            norm_prod = tf.multiply(query_norm, doc_norm)
+            cos_sim_raw = tf.truediv(prod, norm_prod)
+            cos_sim = tf.transpose(tf.reshape(tf.transpose(cos_sim_raw), [self.neg + 1, -1])) * 20
+
+            prob = tf.nn.softmax(cos_sim, name="sim-softmax")
+            hit_prob = tf.slice(prob, [0, 0], [-1, 1], name="sim-slice")
+            loss = -tf.reduce_mean(tf.math.log(hit_prob), name="sim-mean")
+            return loss
+
+        output_shape = (1,)
+        value = Lambda(_cosine, output_shape=output_shape)([inputs[0], inputs[1]])
+        return value
 
 class SampledSoftmaxLayer(Layer):
     """Sampled Softmax Layer"""

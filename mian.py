@@ -42,7 +42,7 @@ print('inputs:{0} type{1},{2}'.format(inputs, tokenized_sequence_zh, tokenized_s
 string_list = ['胃', '康', '宁', '胶', '囊']
 inputs_list = tokenizer_zh(string_list, max_length=10, padding="max_length", truncation=True,is_split_into_words=True)
 tokenized_sequence_decode_zh_list = tokenizer_zh.decode(inputs_list['input_ids'])
-print('inputs_list:{0} list{1}'.format(inputs_list,  tokenized_sequence_decode_zh_list))
+print('inputs_list:{0} list{1}'.format(inputs_list,  tokenized_sequence_decode_zh_list),type(inputs_list))
 string_en = 'Hello world!'
 model_inputs = tokenizer(string_en, max_length=10, padding="max_length", truncation=True)
 tokenized_sequence_en = tokenizer.tokenize(string_en)
@@ -53,7 +53,7 @@ print('inputs_ids:{0} type{1} {2}'.format(model_inputs['input_ids'], tokenized_s
 user_input = tf.random.uniform((64, 62))
 item_input = tf.random.uniform((64, 26))
 
-sample_transformer = Transformer(2, 64, 8, 2, 128, 8,
+sample_transformer = Transformer(2, 128, 8, 2, 128, 8,
                                  512, 21128, 10000, rate=0.1)
 user_out, item_out = sample_transformer(user_input, item_input, enc_user_padding_mask=None,
                                         enc_item_padding_mask=None, training=False, )

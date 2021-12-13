@@ -1,3 +1,4 @@
+import random
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -5,7 +6,7 @@ from tensorflow.keras import Model
 from tensorflow.keras.layers import Embedding, Dense, BatchNormalization, Input, PReLU, Dropout, GlobalAveragePooling1D
 from tensorflow.keras.regularizers import l2
 import tensorflow.feature_column as fc
-from models.keras.layers.modules import DNN, MultiHeadAttention
+from models.keras.layers.modules import DNN, MultiHeadAttention,NegativeCosineLayer
 
 
 #
@@ -151,10 +152,14 @@ class DSSM(Model):
                  **kwargs):
         super(DSSM, self).__init__(**kwargs)
         self.num_sampled = config['num_sampled']
-        user_dnn_hidden_units = (64, 32)
-        item_dnn_hidden_units = (64, 32)
-        dnn_activation = 'relu'
-        dnn_dropout = 0
+        # user_dnn_hidden_units = (64, 32)
+        # item_dnn_hidden_units = (64, 32)
+        # dnn_activation = 'relu'
+        # dnn_dropout = 0
+        self.user_dnn_hidden_units = config['user_dnn_hidden_units']
+        self.item_dnn_hidden_units = config['item_dnn_hidden_units']
+        dnn_activation = config['out_dnn_activation']
+        dnn_dropout = config['dnn_dropout']
         self.embed_size = config['embed_size']
 
         self.user_cols = config['user_cols']
@@ -165,6 +170,7 @@ class DSSM(Model):
         self.bucket_cols = config['bucket_cols']
         self.crossed_cols = config['crossed_cols']
         self.l2_reg_embedding = config['l2_reg_embedding']
+        self.config = config
 
         # [{'feat': 'user_id', 'feat_num': 100, 'feat_len': 1, 'embed_dim': 8}]
         text_embed = Embedding(input_dim=config['vocab_size'] + 1,
@@ -176,6 +182,7 @@ class DSSM(Model):
                                )
         self.avg_embedding = keras.layers.Lambda(lambda x: tf.reduce_mean(x, 1))
         self.pooling_embedding = GlobalAveragePooling1D()
+        self.negativecosine_layer = NegativeCosineLayer(self.config['neg'],self.config['batch_size'])
 
         self.user_embed_layers = {}
         for feat in self.user_cols:
@@ -206,8 +213,8 @@ class DSSM(Model):
                 else:
                     self.item_embed_layers['embed_' + str(feat['name'])] = text_embed
 
-        self.user_dnn = DNN(user_dnn_hidden_units, dnn_activation, dnn_dropout)
-        self.item_dnn = DNN(item_dnn_hidden_units, dnn_activation, dnn_dropout)
+        self.user_dnn = DNN(self.user_dnn_hidden_units, dnn_activation, dnn_dropout)
+        self.item_dnn = DNN(self.item_dnn_hidden_units, dnn_activation, dnn_dropout)
 
     # def cosine_similarity(self, tensor1, tensor2):
     #     """计算cosine similarity"""
@@ -259,7 +266,7 @@ class DSSM(Model):
 
         user_dnn_input = user_sparse_embed
         self.user_dnn_out = self.user_dnn(user_dnn_input)
-
+        self.user_dnn_out = tf.reshape(self.user_dnn_out, [-1, self.item_dnn_hidden_units[-1]])
         print('item_inputs:{0}'.format(item_inputs))
         item_embedding = []
         item_feature_columns = []
@@ -279,7 +286,7 @@ class DSSM(Model):
             elif k in self.categorical_cols:
                 item_feature_inputs[k] = item_inputs[k]
                 category = fc.categorical_column_with_vocabulary_list(
-                        k, feat['vocab_list'])
+                    k, feat['vocab_list'])
                 category_column = fc.embedding_column(category, feat['embed_dim'])
                 item_feature_columns.append(category_column)
 
@@ -308,24 +315,49 @@ class DSSM(Model):
                 # print('feat_buckets_outputs {0}'.format(feat_buckets_outputs))
 
             item_embedding.append(item_col_embed)
-        print('item_feature_columns:{0}'.format(item_feature_columns))
+        # print('item_feature_columns:{0}'.format(item_feature_columns))
         feature_layer = tf.keras.layers.DenseFeatures(item_feature_columns)
         feature_layer_outputs = tf.expand_dims(feature_layer(item_feature_inputs), axis=1)
-        print('item_embed:{0}'.format(item_embedding))
-        print('feature_layer_outputs:{0}'.format(feature_layer_outputs))
+        # print('item_embed:{0}'.format(item_embedding))
+        # print('feature_layer_outputs:{0}'.format(feature_layer_outputs))
         item_embedding.append(feature_layer_outputs)
 
-        print('embed_user:{0},item:{1}'.format(user_embedding, item_embedding))
+        # print('embed_user:{0},item:{1}'.format(user_embedding, item_embedding))
         item_sparse_embed = tf.concat(item_embedding, axis=-1)
         item_dnn_input = item_sparse_embed
         self.item_dnn_out = self.item_dnn(item_dnn_input)
+        self.item_dnn_out = tf.reshape(self.item_dnn_out,[-1,self.item_dnn_hidden_units[-1]])
+        # # 随机采样负样本
+        # with tf.name_scope("rotate"):
+        #     tmp = tf.tile(self.item_dnn_out, [1, 1])
+        #     item_encoder_fd = self.item_dnn_out
+        #     for i in range( self.config['neg']):
+        #         rand = tf.cast(((random.random() + i) * tf.cast(self.config['batch_size'], tf.float32) /self.config['neg']), tf.int32)
+        #         item_encoder_fd = tf.concat([item_encoder_fd,
+        #                                      tf.slice(tmp, [rand, 0], [self.config['batch_size']- rand, -1]),
+        #                                      tf.slice(tmp, [0, 0], [rand, -1])], axis=0)
+        #     user_norm = tf.tile(tf.sqrt(tf.reduce_sum(tf.square(self.user_dnn_out), axis=1, keepdims=True)),
+        #                         [self.config['neg'] + 1, 1])
+        #     item_norm = tf.sqrt(tf.reduce_sum(tf.square(item_encoder_fd), axis=1, keepdims=True))
+        #     prod = tf.reduce_sum(tf.multiply(tf.tile(self.user_dnn_out, [self.config['neg'] + 1, 1]), item_encoder_fd), axis=1,
+        #                          keepdims=True)
+        #     norm_prod = tf.multiply(user_norm, item_norm)
+        #     cos_sim_raw = tf.truediv(prod, norm_prod)
+        #     cos_sim = tf.transpose(tf.reshape(tf.transpose(cos_sim_raw), [self.config['neg'] + 1, -1])) * 20
+        #
+        # # 最大化正样本概率
+        # with tf.name_scope("loss"):
+        #     prob = tf.nn.softmax(cos_sim)
+        #     hit_prob = tf.slice(prob, [0, 0], [-1, 1])
+        #     loss = -tf.reduce_mean(tf.math.log(hit_prob))
+        #     correct_prediction = tf.cast(tf.equal(tf.argmax(prob, 1), 0), tf.float32)
+        #     accuracy = tf.reduce_mean(correct_prediction)
+        cosine_score = tf.sigmoid(self.negativecosine_layer([self.item_dnn_out, self.user_dnn_out]))
 
-        print('item_dnn_out:{0}'.format(self.item_dnn_out))
-        print('user_dnn_out:{0}'.format(self.user_dnn_out))
-        cosine_score = tf.sigmoid(self.cosine_similarity(self.item_dnn_out, self.user_dnn_out),name='cosine_score')
-        output = tf.reshape(cosine_score, (-1, ), name='score')
-        print('cosine_score:{0}'.format(cosine_score))
-        print('output:{0}'.format(output))
+        # cosine_score = tf.sigmoid(self.cosine_similarity(self.item_dnn_out, self.user_dnn_out), name='cosine_score')
+        output = tf.reshape(cosine_score, (-1,), name='score')
+        # print('cosine_score:{0}'.format(cosine_score))
+        # print('output:{0}'.format(output))
 
         return output
 
@@ -333,11 +365,44 @@ class DSSM(Model):
         user_inputs = {}
         item_inputs = {}
 
-        for feat in self.user_cols + self.item_cols:
+        # for feat in self.user_cols + self.item_cols:
+        #
+        #     print('feat input:{0}'.format(feat))
+        #     if feat['name'] in self.text_cols:
+        #         #feature_column 共享embedding存在问题，暂时用传统方法
+        #         feat_input = Input(shape=(feat['num'],), name=feat['name'], dtype='int32')
+        #     elif feat['name'] in self.categorical_cols:
+        #         feat_input = Input(shape=(1,), name=feat['name'], dtype='string')
+        #
+        #     else:
+        #         feat_input = Input(shape=(1,), name=feat['name'])
+        #
+        #     if feat in self.user_cols:
+        #         user_inputs[feat['name']] = feat_input
+        #     else:
+        #         item_inputs[feat['name']] = feat_input
+
+        for feat in self.user_cols:
 
             print('feat input:{0}'.format(feat))
             if feat['name'] in self.text_cols:
-                #feature_column 共享embedding存在问题，暂时用传统方法
+                # feature_column 共享embedding存在问题，暂时用传统方法
+                feat_input = Input(shape=(feat['num'],), name=feat['name'], dtype='int32')
+            elif feat['name'] in self.categorical_cols:
+                feat_input = Input(shape=(1,), name=feat['name'], dtype='string')
+
+            else:
+                feat_input = Input(shape=(1,), name=feat['name'])
+
+
+            user_inputs[feat['name']] = feat_input
+
+
+        for feat in self.item_cols:
+
+            print('feat input:{0}'.format(feat))
+            if feat['name'] in self.text_cols:
+                # feature_column 共享embedding存在问题，暂时用传统方法
                 feat_input = Input(shape=(feat['num'],), name=feat['name'], dtype='int32')
             elif feat['name'] in self.categorical_cols:
                 feat_input = Input(shape=(1,), name=feat['name'], dtype='string')
@@ -349,7 +414,6 @@ class DSSM(Model):
                 user_inputs[feat['name']] = feat_input
             else:
                 item_inputs[feat['name']] = feat_input
-
 
         model = Model(inputs=[user_inputs, item_inputs],
                       outputs=self.call([user_inputs, item_inputs]))

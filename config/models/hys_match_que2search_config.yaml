@@ -1,0 +1,48 @@
+train_data_dir: ./data/raw/adult/adult.data
+valid_data_dir: ./data/raw/adult/adult.eval
+test_data_dir: ./data/raw/adult/adult.test
+train_file: "./match_feature.tfrecord/*.tfrecord"
+load_tf_records_data: True
+vocab_size: 25
+# traning process config
+shuffle: True
+model_name: que2search
+modules: 'cnn' #['cnn','transformer']
+optimizer: adam
+train_epoches_num: 1
+num_sampled: 1
+embed_size: 50
+batch_size: 16
+epoches_per_eval: 2
+learning_rate: 0.01
+user_num_layers: 2
+user_d_model: 128
+user_num_heads: 8
+item_num_layers: 6
+item_d_model: 128
+item_num_heads: 8
+dff: 512
+bert_vocab_size: 21128
+maximum_position_encoding: 10000
+user_dnn_hidden_units:
+  - 256
+  - 256
+  - 128
+item_dnn_hidden_units:
+  - 256
+  - 256
+  - 128
+user_dnn_dropout:
+  - 0
+  - 0
+  - 0
+item_dnn_dropout:
+  - 0
+  - 0
+  - 0
+out_dnn_activation: tanh
+gamma: 1.2
+dnn_use_bn: False
+seed: 1024
+metric: 'cos'
+l2_reg_embedding: 0.000001

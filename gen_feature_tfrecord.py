@@ -8,12 +8,13 @@ import tensorflow as tf
 from run_ctr_model import census_text_input_fn_from_tfrecords
 from pyspark.sql.types import *
 from pyspark import SparkConf, SparkContext
-from pyspark.sql.functions import col, lit, split, udf, concat, concat_ws
-from pyspark.sql.types import ArrayType, DoubleType, FloatType, StringType, IntegerType
-
+from pyspark.sql.functions import col, lit, split, udf, concat, concat_ws, explode
+from pyspark.sql.types import ArrayType, DoubleType, FloatType, StringType, IntegerType, MapType
+from pyspark.ml.feature import NGram
 from utils.utils import CreateSparkContex
+from transformers import AutoTokenizer
 
-tf.enable_eager_execution()
+# tf.enable_eager_execution()
 ROOT_PATH = './data/'
 TRAIN_RAW = ROOT_PATH + 'adult/adult.data'
 TEST_RAW = ROOT_PATH + 'adult/adult.test'
@@ -427,6 +428,7 @@ pattern = re.compile(r'[+—！，。？?、~@#￥%…&*（）{}()；;：:[\]【
 class DataPreprocess():
     def __init__(self, df):
         self.word_index = self.build_vocab(df)
+        self.bert_tokenizer = AutoTokenizer.from_pretrained("bert-base-chinese")
 
     def build_vocab(self, df):
         words = set()
@@ -457,6 +459,26 @@ class DataPreprocess():
 
         encode_udf = udf(encode, ArrayType(IntegerType()))
         df = df.withColumn(column, encode_udf(df[column]))
+        return df
+
+    def ngram(self, df, column):
+        ngram = NGram(inputCol=column, n=3, outputCol=column + "ngrams")
+        df = ngram.transform(df)
+        return df
+
+    def tokenizer(self, df, column, max_length):
+        def token(text):
+            result = {}
+            inputs = self.bert_tokenizer(text, max_length=max_length, padding="max_length", truncation=True,
+                                         is_split_into_words=True)
+            # tokenized_sequence_decode_zh_list = tokenizer_zh.decode(inputs_list['input_ids'])
+            # print('inputs_list:{0} list{1}'.format(inputs_list, tokenized_sequence_decode_zh_list))
+            result['input_ids'] = inputs['input_ids']
+            result['attention_mask'] = inputs['attention_mask']
+            return result
+
+        token_udf = udf(token, MapType(StringType(), ArrayType(IntegerType())))
+        df = df.withColumn(column + '_bert', token_udf(df[column]))
         return df
 
 
@@ -565,13 +587,25 @@ def run_hys():
         df = df.withColumn('item', concat_ws(' ', col("title"), col("brand"), col("tag")))
         df = df.withColumn('item', split(col('item'), ' '))
         df = padding_text(df, 'item', 15).drop(*["title", "brand", "tag"])
-        data_preprocess = DataPreprocess(df.select("item").toPandas())
 
+        data_preprocess = DataPreprocess(df.select("item").toPandas())
+        df = data_preprocess.tokenizer(df, 'item', 20)
+        df = df.withColumn("item_input_ids", df.item_bert["input_ids"]) \
+            .withColumn("item_attention_mask", df.item_bert["attention_mask"]) \
+            .drop("item_bert")
         df = df.withColumn('keyword', split(col('keyword'), ' '))
         df = padding_text(df, 'keyword', 5)
+        df = data_preprocess.tokenizer(df, 'keyword', 10)
+        df = df.withColumn("keyword_input_ids", df.keyword_bert["input_ids"]) \
+            .withColumn("keyword_attention_mask", df.keyword_bert["attention_mask"]) \
+            .drop("keyword_bert")
+        print('token')
+        df.show()
         df = data_preprocess.encode_text(df, 'item')
         df = data_preprocess.encode_text(df, 'keyword')
-        df = df.select(*["keyword", "item", "type", "volume", "price", "label"])
+        df = df.select(
+            *["keyword", "keyword_input_ids", "keyword_attention_mask", "item", "item_input_ids", "item_attention_mask",
+              "type", "volume", "price", "label"])
         df.show()
         df.write.mode("overwrite").format("tfrecord").option("recordType", "Example").save(path)
 
@@ -581,7 +615,11 @@ def run_hys():
                     # int
                     # "id": tf.io.FixedLenFeature([], tf.int64),
                     "keyword": tf.io.FixedLenFeature([5], tf.int64),
+                    "keyword_input_ids": tf.io.FixedLenFeature([10], tf.int64),
+                    "keyword_attention_mask": tf.io.FixedLenFeature([10], tf.int64),
                     "item": tf.io.FixedLenFeature([15], tf.int64),
+                    "item_input_ids": tf.io.FixedLenFeature([20], tf.int64),
+                    "item_attention_mask": tf.io.FixedLenFeature([20], tf.int64),
 
                     # string
                     # "keyword": tf.io.FixedLenFeature([5], tf.string),
@@ -601,8 +639,12 @@ def run_hys():
                 features = tf.io.parse_single_example(record, features)
                 # 解析顺序乱了，重新定义顺序
                 new_features = {}
-                new_features['keyword'] =features.pop('keyword')
+                new_features['keyword'] = features.pop('keyword')
+                new_features['keyword_input_ids'] = features.pop('keyword_input_ids')
+                new_features['keyword_attention_mask'] = features.pop('keyword_attention_mask')
                 new_features["item"] = features.pop("item")
+                new_features["item_input_ids"] = features.pop("item_input_ids")
+                new_features["item_attention_mask"] = features.pop("item_attention_mask")
                 new_features["type"] = features.pop("type")
                 new_features["volume"] = features.pop("volume")
                 new_features['price'] = features.pop('price')

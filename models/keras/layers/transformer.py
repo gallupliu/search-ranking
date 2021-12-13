@@ -66,7 +66,7 @@ def scaled_dot_product_attention(q, k, v, mask):
 
   # 将 mask 加入到缩放的张量上。
   if mask is not None:
-    scaled_attention_logits += (mask * -1e9)
+    scaled_attention_logits += (tf.cast(mask, tf.float32) * -1e9)
 
   # softmax 在最后一个轴（seq_len_k）上归一化，因此分数
   # 相加等于1。

@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.feature_column as fc
 
-CONFIG = {
+FEAT_CONFIG = {
     # label
     'columns': ['id', 'keyword', "item", 'title', 'brand', 'tag', 'volume', 'type', 'price', 'user_bert_emb',
                 'item_bert_emb',
@@ -19,13 +19,19 @@ CONFIG = {
     'wide_bucket_cols': ['volume', 'price'],
     'wide_cross_cols': [('type', 'volume'), ],
     'text_cols': ['keyword', "item"],
+    # 'bert_text_cols': ['keyword_input_ids', 'keyword_attention_mask', 'item_input_ids', 'item_attention_mask'],
     'emb_cols': ['user_bert_emb', 'item_bert_emb'],
     'categorical_cols': ['type'],  # 类别型特征统一为string格式
     'numeric_cols': ['volume'],  # 数值型，范围【0，1），直接输入进模型
     'bucket_cols': ['price'],  # 数值分桶型，必须分桶，也就是对应cols 必须有bins
     'crossed_cols': {},
-    'user_cols': [{'name': 'keyword', 'num': 5, 'embed_dim': 50}],
+    'user_cols': [{'name': 'keyword', 'num': 5, 'embed_dim': 50},
+                  # {'name': 'keyword_input_ids', 'num': 10, },
+                  # {'name': 'keyword_attention_mask', 'num': 10, }
+                  ]
+    ,
     'item_cols': [{'name': 'item', 'num': 15, 'embed_dim': 50},
+                  # {'name': 'item_input_ids', 'num': 20, }, {'name': 'item_attention_mask', 'num': 20, },
                   {'name': 'type', 'num': 4, 'embed_dim': 2, 'vocab_list': ['0', '1', '2']},
                   {'name': 'volume', 'num': 1, 'embed_dim': 2},
                   {'name': 'price', 'num': 7, 'embed_dim': 2, 'bins': [0, 10, 20, 30, 40, 50]}
@@ -56,9 +62,9 @@ class FeatureConfig(object):
         @param df:
         @return:
         """
-        total = df.select(*CONFIG['bucket_cols']).toPandas()
+        total = df.select(*FEAT_CONFIG['bucket_cols']).toPandas()
         numeric_range = {}
-        for col in CONFIG['bucket_cols']:
+        for col in FEAT_CONFIG['bucket_cols']:
             numeric_range[col] = (total[col].min(), total[col].max())
         return numeric_range
 
@@ -99,7 +105,7 @@ class FeatureConfig(object):
         #
         feature_columns = []
         for col in cols:
-            if col['name'] in CONFIG['text_cols']:
+            if col['name'] in FEAT_CONFIG['text_cols']:
                 # text_column = fc.categorical_column_with_vocabulary_file(
                 #     key=col,
                 #     vocabulary_file='./ids.txt',
@@ -109,7 +115,7 @@ class FeatureConfig(object):
                     num_oov_buckets=5)
                 # feature_columns.append(fc.embedding_column(text_column, 10))
                 feature_columns.append(fc.shared_embeddings(text_column, self.config['embed_size']))
-            if col['name'] in CONFIG['categorical_cols']:
+            if col['name'] in FEAT_CONFIG['categorical_cols']:
                 category = fc.categorical_column_with_vocabulary_list(
                     col['name'], col['vocab_list'])
                 category_column = fc.embedding_column(category, col['embed_dim'])
@@ -119,7 +125,7 @@ class FeatureConfig(object):
                 feat_col = fc.numeric_column(col['name'])
                 feature_columns.append(feat_col)
 
-            if col['name'] in CONFIG['bucket_cols']:
+            if col['name'] in FEAT_CONFIG['bucket_cols']:
                 feature_columns.append(
                     fc.embedding_column(fc.bucketized_column(fc.numeric_column(col), boundaries=list(
                         np.linspace(self.numeric_range[col['name']][0], self.numeric_range[col['name']][1], 100))),
@@ -130,10 +136,10 @@ class FeatureConfig(object):
 
 def build_hys_feat_columns(emb_dim=8):
     def _get_numeric_feat_range():
-        train = pd.read_csv('./data/raw/adult/adult.data', header=None, names=CONFIG['columns'])[
-            CONFIG['bucket_cols']]
-        test = pd.read_csv('./data/raw/adult/adult.test', header=None, names=CONFIG['columns'])[
-            CONFIG['bucket_cols']]
+        train = pd.read_csv('./data/raw/adult/adult.data', header=None, names=FEAT_CONFIG['columns'])[
+            FEAT_CONFIG['bucket_cols']]
+        test = pd.read_csv('./data/raw/adult/adult.test', header=None, names=FEAT_CONFIG['columns'])[
+            FEAT_CONFIG['bucket_cols']]
         # lst = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         # train['text'] = train.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
         # test['text'] = test.apply(lambda x: ' '.join([str(x) for x in random.sample(lst, 4)]) + ' 0', axis=1)
@@ -141,15 +147,15 @@ def build_hys_feat_columns(emb_dim=8):
         # test['bert_emb'] = test.apply(lambda x: np.random.uniform(low=-0.1, high=0.1, size=10).tolist(), axis=1)
         total = pd.concat([train, test], axis=0)
         numeric_range = {}
-        for col in CONFIG['bucket_cols']:
+        for col in FEAT_CONFIG['bucket_cols']:
             numeric_range[col] = (total[col].min(), total[col].max())
         return numeric_range
 
     def _build_hys_user_columns(numeric_range=None):
         feature_columns = []
 
-        for col in CONFIG['user_cols']:
-            if col in CONFIG['text_cols']:
+        for col in FEAT_CONFIG['user_cols']:
+            if col in FEAT_CONFIG['text_cols']:
                 # text_column = fc.categorical_column_with_vocabulary_file(
                 #     key=col,
                 #     vocabulary_file='./ids.txt',
@@ -160,17 +166,17 @@ def build_hys_feat_columns(emb_dim=8):
                 # feature_columns.append(fc.embedding_column(text_column, 10))
                 feature_columns.append(fc.shared_embeddings(text_column, 10))
 
-            if col in CONFIG['emb_cols']:
+            if col in FEAT_CONFIG['emb_cols']:
                 feature_columns.append(
                     fc.numeric_column(key=col, shape=(10,), default_value=[0.0] * 10, dtype=tf.float32))
 
-            if col in CONFIG['deep_emb_cols']:
+            if col in FEAT_CONFIG['deep_emb_cols']:
                 feature_columns.append(
                     fc.embedding_column(fc.categorical_column_with_hash_bucket(col, hash_bucket_size=10 if
-                    CONFIG['vocab_size'][col] <= 100 else CONFIG['vocab_size'][col] + 100),
+                    FEAT_CONFIG['vocab_size'][col] <= 100 else FEAT_CONFIG['vocab_size'][col] + 100),
                                         dimension=emb_dim)
                 )
-            if col in CONFIG['bucket_cols']:
+            if col in FEAT_CONFIG['bucket_cols']:
                 feature_columns.append(
                     fc.embedding_column(fc.bucketized_column(fc.numeric_column(col), boundaries=list(
                         np.linspace(numeric_range[col][0], numeric_range[col][1], 100))), dimension=emb_dim)
@@ -182,8 +188,8 @@ def build_hys_feat_columns(emb_dim=8):
     def _build_hys_item_columns(numeric_range=None):
         feature_columns = []
 
-        for col in CONFIG['item']:
-            if col in CONFIG['text_cols']:
+        for col in FEAT_CONFIG['item']:
+            if col in FEAT_CONFIG['text_cols']:
                 # text_column = fc.categorical_column_with_vocabulary_file(
                 #     key=col,
                 #     vocabulary_file='./ids.txt',
@@ -193,17 +199,17 @@ def build_hys_feat_columns(emb_dim=8):
                     num_oov_buckets=5)
                 feature_columns.append(fc.embedding_column(text_column, 10))
 
-            if col in CONFIG['emb_cols']:
+            if col in FEAT_CONFIG['emb_cols']:
                 feature_columns.append(
                     fc.numeric_column(key=col, shape=(10,), default_value=[0.0] * 10, dtype=tf.float32))
 
-            if col in CONFIG['deep_emb_cols']:
+            if col in FEAT_CONFIG['deep_emb_cols']:
                 feature_columns.append(
                     fc.embedding_column(fc.categorical_column_with_hash_bucket(col, hash_bucket_size=10 if
-                    CONFIG['vocab_size'][col] <= 100 else CONFIG['vocab_size'][col] + 100),
+                    FEAT_CONFIG['vocab_size'][col] <= 100 else FEAT_CONFIG['vocab_size'][col] + 100),
                                         dimension=emb_dim)
                 )
-            if col in CONFIG['bucket_cols']:
+            if col in FEAT_CONFIG['bucket_cols']:
                 feature_columns.append(
                     fc.embedding_column(fc.bucketized_column(fc.numeric_column(col), boundaries=list(
                         np.linspace(numeric_range[col][0], numeric_range[col][1], 100))), dimension=emb_dim)
