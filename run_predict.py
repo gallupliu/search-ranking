@@ -15,7 +15,7 @@ import datetime
 import numpy as np
 from tensorflow_serving.apis import predict_pb2
 from tensorflow_serving.apis import prediction_service_pb2_grpc
-
+from utils.utils import fn_timer
 
 class _ResultCounter(object):
     """Counter for the prediction results."""
@@ -91,7 +91,7 @@ def _create_rpc_callback(label, result_counter):
 
     return _callback
 
-
+@fn_timer
 def do_dssm_rest_inference(hostport, test_input):
     req_list = []
     data = {"instances": req_list}
@@ -111,7 +111,7 @@ def do_dssm_rest_inference(hostport, test_input):
         print(type(result), result['predictions'], sep='\n')
 
 
-
+@fn_timer
 def do_dssm_grpc_inference(hostport, concurrency, test_input):
     """Tests PredictionService with concurrent requests.
 

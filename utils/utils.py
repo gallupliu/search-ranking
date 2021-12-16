@@ -1,7 +1,7 @@
 from pyspark.sql import SparkSession
 from pyspark import SparkConf, SparkContext
 import time
-def print_run_time(func):
+def fn_timer(func):
     """ 计算时间函数
     """
 

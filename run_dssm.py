@@ -9,6 +9,10 @@ import yaml
 import logging
 import numpy as np
 import tensorflow.compat.v1 as tf
+from tensorflow.keras.losses import binary_crossentropy
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.metrics import AUC
 from config.feature.match.census_match_feat_config_v1 import build_census_feat_columns
 from models.wdl_v1 import wdl_estimator
 from models.dssm_v2 import dssm_model_fn
@@ -297,14 +301,19 @@ def train_hys_data(model_config):
         print('x:{0}'.format(x))
         # print(y)
     print('end ds')
+    # ============================Build Model==========================
+    mirrored_strategy = tf.distribute.MirroredStrategy()
+    # with mirrored_strategy.scope():
     if CONFIG["model_name"] == "dssm":
         model = DSSM(CONFIG)
     elif CONFIG["model_name"] == "que2search":
         model = Que2Search(CONFIG)
     model = model.summary()
     model.summary()
-    model.compile(loss=tf.keras.losses.MeanSquaredError(),
-                  optimizer=keras.optimizers.RMSprop(), metrics=[AUC()])
+    model.compile(loss=binary_crossentropy,
+                  optimizer=Adam(learning_rate=0.1), metrics=[AUC()])
+        # model.compile(loss=tf.keras.losses.binary_crossentropy, optimizer=Adam(learning_rate=learning_rate),
+        #               metrics=[AUC()])
 
     test_input = {
         "item": np.asarray([[11, 4, 11, 4, 11, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -336,16 +345,16 @@ def train_hys_data(model_config):
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir="./logs/logs_" + TIMESTAMP)
     model_file_path = './pb/match/' + CONFIG["model_name"] + '/'
     model_file_path_test = './pb/match/' + CONFIG["model_name"] + '/test/'
-    # history = model.fit(train_ds,
-    #                     epochs=5, steps_per_epoch=30,
-    #                     callbacks=[tensorboard_callback]
-    #                     )
-    #
-    #
-    # # # Calling `save('my_model')` creates a SavedModel folder `my_model`.
-    # model.save(model_file_path)
+    model.fit(train_ds,
+                        epochs=5, steps_per_epoch=30,
+                        callbacks=[tensorboard_callback,
+                                   EarlyStopping(monitor='loss', patience=1, restore_best_weights=True)]
+                        )
+
+    # # Calling `save('my_model')` creates a SavedModel folder `my_model`.
+    model.save(model_file_path)
     # It can be used to reconstruct the model identically.
-    # reconstructed_model = tf.keras.models.load_model(model_file_path)
+    reconstructed_model = tf.keras.models.load_model(model_file_path)
     #
     # # Let's check:
     # #
@@ -364,6 +373,7 @@ def train_hys_data(model_config):
     # The reconstructed model is already compiled and has retrained the optimizer
     # state, so training can resume:
     print('retrained')
+
     # reconstructed_model.fit(test_input, test_target)
 
     #
@@ -383,27 +393,24 @@ def train_hys_data(model_config):
     # })
     #
     # print('#'*50)
-    import tempfile
-    model_dir = tempfile.mkdtemp()
-    # export_outputs = {
-    #                   'score': tf.estimator.export.ClassificationOutput}
-    keras_estimator = tf.keras.estimator.model_to_estimator(
-        keras_model=model, model_dir=model_dir)
-    # estimator_train_result = keras_estimator.train(input_fn=lambda: input_fn(train_images, train_labels, EPOCHS, BATCH_SIZE))
-    keras_estimator.train(input_fn=lambda:hys_input_fn_from_tfrecords("./match_feature.tfrecord/*.tfrecord", 1, shuffle=True, batch_size=4), steps=500)
-    eval_result = keras_estimator.evaluate(input_fn=lambda:hys_input_fn_from_tfrecords("./match_feature.tfrecord/*.tfrecord", 1, shuffle=False, batch_size=4), steps=10)
-    print('Eval result: {}'.format(eval_result))
-
+    # import tempfile
+    # model_dir = tempfile.mkdtemp()
+    # # export_outputs = {
+    # #                   'score': tf.estimator.export.ClassificationOutput}
+    # keras_estimator = tf.keras.estimator.model_to_estimator(
+    #     keras_model=model, model_dir=model_dir)
+    # # estimator_train_result = keras_estimator.train(input_fn=lambda: input_fn(train_images, train_labels, EPOCHS, BATCH_SIZE))
+    # keras_estimator.train(input_fn=lambda:hys_input_fn_from_tfrecords("./match_feature.tfrecord/*.tfrecord", 1, shuffle=True, batch_size=4), steps=500)
+    # eval_result = keras_estimator.evaluate(input_fn=lambda:hys_input_fn_from_tfrecords("./match_feature.tfrecord/*.tfrecord", 1, shuffle=False, batch_size=4), steps=10)
+    # print('Eval result: {}'.format(eval_result))
 
     # 输出节点名字要和pb模型里对应
-
 
     # 由模型生成预测
     def predict_input_fn(features, batch_size=256):
         """An input function for prediction."""
         # 将输入转换为无标签数据集。
         return tf.data.Dataset.from_tensor_slices(dict(features)).batch(batch_size)
-
 
     #
     # # columns = ARGS['user_columns'] + ARGS['item_columns']
@@ -434,19 +441,16 @@ def train_hys_data(model_config):
         }
         logging.debug("feature spec: %s", feature_spec)
         return tf.estimator.export.build_parsing_serving_input_receiver_fn(feature_spec)()
-
-    keras_estimator.export_saved_model(model_file_path_test, serving_input_fn)
-    predictions = keras_estimator.predict(
-        input_fn=lambda: predict_input_fn(test_input))
-    for pred_dict, expec in zip(predictions, test_target):
-        score = pred_dict['tf.reshape_2']
-        print('score:{0}'.format(score))
-
+    #
+    # keras_estimator.export_saved_model(model_file_path_test, serving_input_fn)
+    # predictions = keras_estimator.predict(
+    #     input_fn=lambda: predict_input_fn(test_input))
+    # for pred_dict, expec in zip(predictions, test_target):
+    #     score = pred_dict['tf.reshape_4']
+    #     print('score:{0}'.format(score))
 
     # print('Prediction is "{}" ({:.1f}%), expected "{}"'.format(
     #     SPECIES[class_id], 100 * probability, expec))
-
-
 
     # todo 1、batch内随机负采样 3、添加transformer和attention fusion 4、实现java的serving和local调用
 
@@ -484,7 +488,6 @@ def train_hys_data(model_config):
     # user_embs = tf.squeeze(user_embs)
     # item_embs = tf.squeeze(item_embs)
     # print("user embed:{0}".format(user_embs))
-
 
 
 if __name__ == '__main__':

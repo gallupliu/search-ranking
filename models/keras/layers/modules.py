@@ -72,37 +72,59 @@ class NegativeCosineLayer():
         value = Lambda(_cosine, output_shape=output_shape)([inputs[0], inputs[1]])
         return value
 
-class NegativeCosineLayer():
-    """ 自定义batch内负采样并做cosine相似度的层 """
-    def __init__(self, neg,batch_size,**kwargs):
-        super(NegativeCosineLayer, self).__init__(**kwargs)
-        self.neg =neg
-        self.batch_size = batch_size
 
-    def __call__(self, inputs):
-        def _cosine(x):
-            query_encoder, doc_encoder = x
-            doc_encoder_fd = doc_encoder
-            for i in range(self.neg):
-                ss = tf.gather(doc_encoder, tf.random.shuffle(tf.range(tf.shape(doc_encoder)[0])))
-                doc_encoder_fd = tf.concat([doc_encoder_fd, ss], axis=0)
-            query_norm = tf.tile(tf.sqrt(tf.reduce_sum(tf.square(query_encoder), axis=1, keepdims=True)), [self.neg + 1, 1])
-            doc_norm = tf.sqrt(tf.reduce_sum(tf.square(doc_encoder_fd), axis=1, keepdims=True))
-            query_encoder_fd = tf.tile(query_encoder, [self.neg + 1, 1])
-            prod = tf.reduce_sum(tf.multiply(query_encoder_fd, doc_encoder_fd, name="sim-multiply"), axis=1,
-                                 keepdims=True)
-            norm_prod = tf.multiply(query_norm, doc_norm)
-            cos_sim_raw = tf.truediv(prod, norm_prod)
-            cos_sim = tf.transpose(tf.reshape(tf.transpose(cos_sim_raw), [self.neg + 1, -1])) * 20
+# cos 相似度计算层
+class Similarity(Layer):
 
-            prob = tf.nn.softmax(cos_sim, name="sim-softmax")
-            hit_prob = tf.slice(prob, [0, 0], [-1, 1], name="sim-slice")
-            loss = -tf.reduce_mean(tf.math.log(hit_prob), name="sim-mean")
-            return loss
+    def __init__(self, gamma=20, axis=-1, type_sim='cos', neg=3, **kwargs):
+        self.gamma = gamma
+        self.axis = axis
+        self.type_sim = type_sim
+        self.neg = neg
+        super(Similarity, self).__init__(**kwargs)
 
-        output_shape = (1,)
-        value = Lambda(_cosine, output_shape=output_shape)([inputs[0], inputs[1]])
-        return value
+    def build(self, input_shape):
+        # Be sure to call this somewhere!
+        super(Similarity, self).build(input_shape)
+
+    def call(self, inputs, **kwargs):
+        query, candidate = inputs
+        bs = tf.shape(query)[0]
+        tmp = candidate
+        # Negative Sampling
+        for i in range(self.neg):
+            rand = tf.random.uniform([], minval=0, maxval=bs + i, dtype=tf.dtypes.int32, ) % bs
+            candidate = tf.concat([candidate,
+                                   tf.slice(tmp, [rand, 0], [bs - rand, -1]),
+                                   tf.slice(tmp, [0, 0], [rand, -1])], 0
+                                  )
+        # 扩充至 candidate 一样的维度
+        query = tf.tile(query, [self.neg + 1, 1])
+
+        if self.type_sim == "cos":
+            query_norm = tf.norm(query, axis=self.axis)
+            candidate_norm = tf.norm(candidate, axis=self.axis)
+
+        # cos_sim_raw = query * candidate / (||query|| * ||candidate||)
+        cos_sim_raw = tf.reduce_sum(tf.multiply(query, candidate), -1)
+        cos_sim_raw = tf.divide(cos_sim_raw, query_norm * candidate_norm + 1e-8)
+        cos_sim_raw = tf.clip_by_value(cos_sim_raw, -1, 1.0)
+        # 超参数 gamma 20 论文
+        cos_sim = tf.transpose(tf.reshape(tf.transpose(cos_sim_raw), [self.neg + 1, -1])) * self.gamma
+        # 转化为softmax概率矩阵
+        prob = tf.nn.softmax(cos_sim)
+        # 只取第一列，即正样本列概率。
+        logits = tf.slice(prob, [0, 0], [-1, 1])
+
+        return logits
+
+    def compute_output_shape(self, input_shape):
+        return (None, 1)
+
+    def get_config(self, ):
+        config = {'gamma': self.gamma, 'axis': self.axis, 'type': self.type_sim}
+        config = super(Similarity, self).get_config()
+        return config
 
 class SampledSoftmaxLayer(Layer):
     """Sampled Softmax Layer"""

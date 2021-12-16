@@ -6,7 +6,7 @@ from tensorflow.keras import Model
 from tensorflow.keras.layers import Embedding, Dense, BatchNormalization, Input, PReLU, Dropout, GlobalAveragePooling1D
 from tensorflow.keras.regularizers import l2
 import tensorflow.feature_column as fc
-from models.keras.layers.modules import DNN, MultiHeadAttention,NegativeCosineLayer
+from models.keras.layers.modules import DNN, MultiHeadAttention,NegativeCosineLayer,Similarity
 
 
 #
@@ -182,7 +182,7 @@ class DSSM(Model):
                                )
         self.avg_embedding = keras.layers.Lambda(lambda x: tf.reduce_mean(x, 1))
         self.pooling_embedding = GlobalAveragePooling1D()
-        self.negativecosine_layer = NegativeCosineLayer(self.config['neg'],self.config['batch_size'])
+        # self.negativecosine_layer = NegativeCosineLayer(self.config['neg'],self.config['batch_size'])
 
         self.user_embed_layers = {}
         for feat in self.user_cols:
@@ -327,7 +327,12 @@ class DSSM(Model):
         item_dnn_input = item_sparse_embed
         self.item_dnn_out = self.item_dnn(item_dnn_input)
         self.item_dnn_out = tf.reshape(self.item_dnn_out,[-1,self.item_dnn_hidden_units[-1]])
-        # # 随机采样负样本
+
+        score = Similarity(type_sim='cos', gamma=20, name='dssm_out')([self.user_dnn_out, self.item_dnn_out])
+
+        output = score
+
+        # # # 随机采样负样本
         # with tf.name_scope("rotate"):
         #     tmp = tf.tile(self.item_dnn_out, [1, 1])
         #     item_encoder_fd = self.item_dnn_out
@@ -336,9 +341,12 @@ class DSSM(Model):
         #         item_encoder_fd = tf.concat([item_encoder_fd,
         #                                      tf.slice(tmp, [rand, 0], [self.config['batch_size']- rand, -1]),
         #                                      tf.slice(tmp, [0, 0], [rand, -1])], axis=0)
+        # # Cosine similarity
+        # with tf.name_scope("cosine_similarity"):
         #     user_norm = tf.tile(tf.sqrt(tf.reduce_sum(tf.square(self.user_dnn_out), axis=1, keepdims=True)),
         #                         [self.config['neg'] + 1, 1])
         #     item_norm = tf.sqrt(tf.reduce_sum(tf.square(item_encoder_fd), axis=1, keepdims=True))
+        #     # prod [(NEG + 1) * batch_size, 1] tf.tile对数据进行复制
         #     prod = tf.reduce_sum(tf.multiply(tf.tile(self.user_dnn_out, [self.config['neg'] + 1, 1]), item_encoder_fd), axis=1,
         #                          keepdims=True)
         #     norm_prod = tf.multiply(user_norm, item_norm)
@@ -349,13 +357,14 @@ class DSSM(Model):
         # with tf.name_scope("loss"):
         #     prob = tf.nn.softmax(cos_sim)
         #     hit_prob = tf.slice(prob, [0, 0], [-1, 1])
-        #     loss = -tf.reduce_mean(tf.math.log(hit_prob))
+        #     self.loss = -tf.reduce_mean(tf.math.log(hit_prob))
         #     correct_prediction = tf.cast(tf.equal(tf.argmax(prob, 1), 0), tf.float32)
         #     accuracy = tf.reduce_mean(correct_prediction)
-        cosine_score = tf.sigmoid(self.negativecosine_layer([self.item_dnn_out, self.user_dnn_out]))
+        #     output = hit_prob
+        # cosine_score = tf.sigmoid(self.negativecosine_layer([self.item_dnn_out, self.user_dnn_out]))
 
         # cosine_score = tf.sigmoid(self.cosine_similarity(self.item_dnn_out, self.user_dnn_out), name='cosine_score')
-        output = tf.reshape(cosine_score, (-1,), name='score')
+        # output = tf.reshape(cosine_score, (-1,), name='score')
         # print('cosine_score:{0}'.format(cosine_score))
         # print('output:{0}'.format(output))
 
