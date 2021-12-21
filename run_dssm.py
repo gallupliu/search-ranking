@@ -9,17 +9,20 @@ import yaml
 import logging
 import numpy as np
 import tensorflow.compat.v1 as tf
+from pathlib import Path
+from tensorflow.keras.losses import BinaryCrossentropy
+from tensorflow.keras.metrics import Mean, AUC
+from tensorflow.keras.optimizers import SGD
+from tensorflow.keras import Model
 from tensorflow.keras.losses import binary_crossentropy
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.metrics import AUC
 from config.feature.match.census_match_feat_config_v1 import build_census_feat_columns
 from models.wdl_v1 import wdl_estimator
 from models.dssm_v2 import dssm_model_fn
-from models.keras.models.dssm import DSSM
+from models.keras.models.dssm import DSSM, model_fn, DSSMModel
 from models.keras.models.que2search import Que2Search
 from tensorflow import keras
-from tensorflow.keras.metrics import AUC
 from config.feature.match.hys_match_feat_config import FEAT_CONFIG
 from datetime import datetime
 
@@ -193,7 +196,7 @@ class MyModule(tf.Module):
     #   return { "other_variable": self._other_variable }
 
 
-def hys_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_size):
+def train_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_size):
     def _parse_func(record):
         features = {
             # int
@@ -227,6 +230,7 @@ def hys_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_size):
             new_features[feat['name']] = features.pop(feat['name'])
         for feat in FEAT_CONFIG['item_cols']:
             new_features[feat['name']] = features.pop(feat['name'])
+
         # new_features["item"] = features.pop("item")
         # new_features["type"] = features.pop("type")
         # new_features["volume"] = features.pop("volume")
@@ -255,47 +259,164 @@ def hys_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_size):
     return dataset
 
 
-def export_model(model):
-    sess = tf.compat.v1.InteractiveSession()
-    sess.run(tf.compat.v1.global_variables_initializer())
-    # Set the path where the model will be saved.
-    export_base_path = os.path.abspath('models/versions/')
-    model_version = '1'
-    export_path = os.path.join(tf.compat.as_bytes(export_base_path),
-                               tf.compat.as_bytes(model_version))
-    # Make the model builder.
-    builder = tf.saved_model.builder.SavedModelBuilder(export_path)
-    # Define the TensorInfo protocol buffer objects that encapsulate our
-    # input/output tensors.
-    # Note you can have a list of model.input layers, or just a single model.input
-    # without any indexing. I'm showing a list of inputs and a single output layer.
-    # Input tensor info.
-    tensor_info_input0 = tf.saved_model.utils.build_tensor_info(model.input[0])
-    tensor_info_input1 = tf.saved_model.utils.build_tensor_info(model.input[1])
-    # Output tensor info.
-    tensor_info_output = tf.saved_model.utils.build_tensor_info(model.output)
+def predict_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_size):
+    def _parse_func(record):
+        features = {
+            # int
+            # "id": tf.io.FixedLenFeature([], tf.int64),
+            "keyword": tf.io.FixedLenFeature([5], tf.int64),
+            "keyword_input_ids": tf.io.FixedLenFeature([10], tf.int64),
+            "keyword_attention_mask": tf.io.FixedLenFeature([10], tf.int64),
+            "item": tf.io.FixedLenFeature([15], tf.int64),
+            "item_input_ids": tf.io.FixedLenFeature([20], tf.int64),
+            "item_attention_mask": tf.io.FixedLenFeature([20], tf.int64),
 
-    # Define the call signatures used by the TF Predict API. Note the name
-    # strings here should match what the layers are called in your model definition.
-    # Might have to play with that because I forget if it's the name parameter, or
-    # the actual object handle in your code.
-    prediction_signature = (
-        tf.saved_model.signature_def_utils.build_signature_def(
-            inputs={'input0': tensor_info_input0, 'input1': tensor_info_input1},
-            outputs={'prediction': tensor_info_output},
-            method_name=tf.saved_model.signature_constants.PREDICT_METHOD_NAME))
+            # string
+            # "keyword": tf.io.FixedLenFeature([5], tf.string),
+            # "title": tf.io.FixedLenFeature([5], tf.string),
+            # "brand": tf.io.FixedLenFeature([5], tf.string),
+            # "tag": tf.io.FixedLenFeature([5], tf.string),
+            # "item": tf.io.FixedLenFeature([15], tf.string),
+            "type": tf.io.FixedLenFeature([], tf.string),
 
-    # Now we build the SavedModel protocol buffer object and then save it.
-    builder.add_meta_graph_and_variables(sess,
-                                         [tf.saved_model.tag_constants.SERVING],
-                                         signature_def_map={'predict': prediction_signature})
-    builder.save(as_text=True)
+            "volume": tf.io.FixedLenFeature([], tf.float32),
+            "price": tf.io.FixedLenFeature([], tf.float32),
+            # 'user_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # query向量
+            # 'item_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # item向量
+        }
+        features = tf.io.parse_single_example(record, features)
+        # 解析顺序乱了，重新定义顺序
+        new_features = {}
+        for feat in FEAT_CONFIG['user_cols']:
+            new_features[feat['name']] = features.pop(feat['name'])
+        for feat in FEAT_CONFIG['item_cols']:
+            new_features[feat['name']] = features.pop(feat['name'])
+
+        # new_features["item"] = features.pop("item")
+        # new_features["type"] = features.pop("type")
+        # new_features["volume"] = features.pop("volume")
+        # new_features['price'] = features.pop('price')
+        print('feature:{}'.format(features))
+        print('new_feature:{}'.format(new_features))
+        return new_features
+
+    # tf.compat.v1.gfile.Glob(path2)
+    print(tf.io.gfile.listdir)
+    print('data_file:{0}'.format(data_file))
+    # assert tf.io.gfile.exists(tf.io.gfile.glob(data_file)), ('no file named: ' + str(data_file))
+    dataset = tf.data.TFRecordDataset(tf.io.gfile.glob(data_file)).map(_parse_func,
+                                                                       num_parallel_calls=10)
+    dataset = dataset.repeat(num_epochs)
+    dataset = dataset.batch(batch_size)
+
+    return dataset
 
 
-def train_hys_data(model_config):
+def predict_user_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_size):
+    def _parse_func(record):
+        features = {
+            # int
+            # "id": tf.io.FixedLenFeature([], tf.int64),
+            "keyword": tf.io.FixedLenFeature([5], tf.int64),
+        }
+        features = tf.io.parse_single_example(record, features)
+        # 解析顺序乱了，重新定义顺序
+        new_features = {}
+        for feat in FEAT_CONFIG['user_cols']:
+            new_features[feat['name']] = features.pop(feat['name'])
+
+        print('feature:{}'.format(features))
+        print('new_feature:{}'.format(new_features))
+        return new_features
+
+    # tf.compat.v1.gfile.Glob(path2)
+    print(tf.io.gfile.listdir)
+    print('data_file:{0}'.format(data_file))
+    # assert tf.io.gfile.exists(tf.io.gfile.glob(data_file)), ('no file named: ' + str(data_file))
+    dataset = tf.data.TFRecordDataset(tf.io.gfile.glob(data_file)).map(_parse_func,
+                                                                       num_parallel_calls=10)
+    dataset = dataset.repeat(num_epochs)
+    dataset = dataset.batch(batch_size)
+
+    return dataset
+
+def predict_item_input_fn_from_tfrecords(data_file, num_epochs, shuffle, batch_size):
+    def _parse_func(record):
+        features = {
+            # int
+            # "id": tf.io.FixedLenFeature([], tf.int64),
+            "keyword_input_ids": tf.io.FixedLenFeature([10], tf.int64),
+            "keyword_attention_mask": tf.io.FixedLenFeature([10], tf.int64),
+            "item": tf.io.FixedLenFeature([15], tf.int64),
+            "item_input_ids": tf.io.FixedLenFeature([20], tf.int64),
+            "item_attention_mask": tf.io.FixedLenFeature([20], tf.int64),
+
+            "type": tf.io.FixedLenFeature([], tf.string),
+
+            "volume": tf.io.FixedLenFeature([], tf.float32),
+            "price": tf.io.FixedLenFeature([], tf.float32),
+            # 'user_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # query向量
+            # 'item_bert_emb': tf.io.FixedLenFeature([10], tf.float32),  # item向量
+        }
+        features = tf.io.parse_single_example(record, features)
+        # 解析顺序乱了，重新定义顺序
+        new_features = {}
+        for feat in FEAT_CONFIG['item_cols']:
+            new_features[feat['name']] = features.pop(feat['name'])
+
+        print('feature:{}'.format(features))
+        print('new_feature:{}'.format(new_features))
+        return new_features
+
+    # tf.compat.v1.gfile.Glob(path2)
+    print(tf.io.gfile.listdir)
+    print('data_file:{0}'.format(data_file))
+    # assert tf.io.gfile.exists(tf.io.gfile.glob(data_file)), ('no file named: ' + str(data_file))
+    dataset = tf.data.TFRecordDataset(tf.io.gfile.glob(data_file)).map(_parse_func,
+                                                                       num_parallel_calls=10)
+    dataset = dataset.repeat(num_epochs)
+    dataset = dataset.batch(batch_size)
+
+    return dataset
+
+def main(model_config):
+    # params = {**FEAT_CONFIG, **model_config}
+    # classifier = tf.estimator.Estimator(model_fn=model_fn,
+    #                                     config=tf.estimator.RunConfig(model_dir='./temp/',
+    #                                                                   save_checkpoints_steps=10,
+    #                                                                   keep_checkpoint_max=3),
+    #                                     params=params
+    #                                     )
+    # train_ds = hys_input_fn_from_tfrecords(params['train_file'], 1, shuffle=True, batch_size=4)
+    # def train_eval_model():
+    #     train_spec = tf.estimator.TrainSpec(input_fn=lambda: hys_input_fn_from_tfrecords(params['train_file'], 1, shuffle=True, batch_size=4),
+    #                                         max_steps=10)
+    #     eval_spec = tf.estimator.EvalSpec(input_fn=lambda: hys_input_fn_from_tfrecords(params['train_file'], 1, shuffle=True, batch_size=4),
+    #                                       start_delay_secs=60,
+    #                                       throttle_secs = 30,
+    #                                       steps=1000)
+    #     tf.estimator.train_and_evaluate(classifier, train_spec, eval_spec)
+    #
+    # train_eval_model()
+    # def train_model():
+    #     from tensorflow.python import debug as tf_debug
+    #     debug_hook = tf_debug.LocalCLIDebugHook()
+    #     classifier.train(input_fn=lambda: fe.train_input_fn(FLAGS.train_data, FLAGS.batch_size), steps=1000, hooks=[debug_hook,])
+    #
+    # def eval_model():
+    #     classifier.evaluate(input_fn=lambda: fe.eval_input_fn(FLAGS.eval_data, FLAGS.batch_size), steps=1000)
+    #
+    # if FLAGS.is_eval:
+    #     eval_model()
+    #
+    # if FLAGS.train_eval:
+    #     train_eval_model()
     CONFIG = {**FEAT_CONFIG, **model_config}
+    # initialize the environment for train
+    output_ckpt_path = Path('./temp/test')
 
-    train_ds = hys_input_fn_from_tfrecords(CONFIG['train_file'], 1, shuffle=True, batch_size=4)
+    train_ds = train_input_fn_from_tfrecords(CONFIG['train_file'], 1, shuffle=True, batch_size=4)
+    test_ds = predict_input_fn_from_tfrecords(CONFIG['train_file'], 1, shuffle=True, batch_size=4)
     print(train_ds)
     for x in train_ds.take(1):
         print('x:{0}'.format(x))
@@ -305,16 +426,115 @@ def train_hys_data(model_config):
     mirrored_strategy = tf.distribute.MirroredStrategy()
     # with mirrored_strategy.scope():
     if CONFIG["model_name"] == "dssm":
+        # model = DSSMModel(CONFIG)
+        model = model_fn(CONFIG)
+    elif CONFIG["model_name"] == "que2search":
+        model = Que2Search(CONFIG)
+    loss_obj = BinaryCrossentropy()
+    optimizer = SGD(learning_rate=0.01)
+
+    train_loss = Mean(name='train_loss')
+    train_auc = AUC(name='train_auc')
+    validation_loss = Mean(name='validation_loss')
+    validation_auc = AUC(name='validation_auc')
+    best_auc = 0
+
+    # with tf.GradientTape() as tape:
+    #     logits = model(images)
+    #     loss_value = loss(logits, labels)
+    # grads = tape.gradient(loss_value, model.trainable_variables)
+    # optimizer.apply_gradients(zip(grads, model.trainable_variables))
+
+    @tf.function
+    def train_step(x, y):
+        with tf.GradientTape() as tape:
+            predictions = model(x)
+            loss = loss_obj(y, predictions)
+        # gtape.gradient(loss, var_list)
+        grads = tape.gradient(loss, model.trainable_variables)
+        optimizer.apply_gradients(zip(grads, model.trainable_variables))
+
+        train_loss(loss)
+        train_auc(y, predictions)
+
+    @tf.function
+    def validation_step(x, y):
+        predictions = model(x)
+        loss = loss_obj(y, predictions)
+
+        validation_loss(loss)
+        validation_auc(y, predictions)
+
+    train_ratio, validation_ratio, test_ratio = [0.6, 0.2, 0.2]
+    batch_size = 128
+    learning_rate = 1e-1
+    epochs = 20
+    start_epoch = 0
+    # train
+    for epoch in range(start_epoch, epochs):
+        train_loss.reset_states()
+        train_auc.reset_states()
+        validation_loss.reset_states()
+        validation_auc.reset_states()
+
+        for features, labels in train_ds:
+            train_step(features, labels)
+        for features, labels in train_ds:
+            validation_step(features, labels)
+
+        print('epoch: {}, train_loss: {}, train_auc: {}'.format(epoch + 1, train_loss.result().numpy(),
+                                                                train_auc.result().numpy()))
+        print('epoch: {}, validation_loss: {}, validation_auc: {}'.format(epoch + 1, validation_loss.result().numpy(),
+                                                                          validation_auc.result().numpy()))
+
+        model.save(output_ckpt_path / str(epoch + 1))
+        if best_auc < validation_auc.result().numpy():
+            best_auc = validation_auc.result().numpy()
+            model.save(output_ckpt_path / 'best')
+
+    # test
+    @tf.function
+    def test_step(x, y):
+        predictions = model(x)
+        loss = loss_obj(y, predictions)
+
+        test_loss(loss)
+        test_auc(y, predictions)
+
+    model = tf.keras.models.load_model(output_ckpt_path / 'best')
+    test_loss = Mean(name='test_loss')
+    test_auc = AUC(name='test_auc')
+    for features, labels in train_ds:
+        test_step(features, labels)
+    print('test_loss: {}, test_auc: {}'.format(test_loss.result().numpy(),
+                                               test_auc.result().numpy()))
+
+
+def train_hys_data(model_config):
+    CONFIG = {**FEAT_CONFIG, **model_config}
+
+    train_ds = train_input_fn_from_tfrecords(CONFIG['train_file'], 1, shuffle=True, batch_size=4)
+    val_ds = train_input_fn_from_tfrecords(CONFIG['train_file'], 1, shuffle=True, batch_size=4)
+    test_ds = predict_input_fn_from_tfrecords(CONFIG['train_file'], 1, shuffle=True, batch_size=4)
+
+    print(train_ds)
+    for x in train_ds.take(1):
+        print('x:{0}'.format(x))
+        # print(y)
+    print('end ds')
+    # ============================Build Model==========================
+    mirrored_strategy = tf.distribute.MirroredStrategy()
+    # with mirrored_strategy.scope():
+    if CONFIG["model_name"] == "dssm":
+        # model = model_fn(CONFIG)
         model = DSSM(CONFIG)
     elif CONFIG["model_name"] == "que2search":
         model = Que2Search(CONFIG)
-    model = model.summary()
+
+    model = model.build_model()
     model.summary()
     model.compile(loss=binary_crossentropy,
                   optimizer=Adam(learning_rate=0.1), metrics=[AUC()])
-        # model.compile(loss=tf.keras.losses.binary_crossentropy, optimizer=Adam(learning_rate=learning_rate),
-        #               metrics=[AUC()])
-
     test_input = {
         "item": np.asarray([[11, 4, 11, 4, 11, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                             [11, 4, 11, 4, 11, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -343,28 +563,27 @@ def train_hys_data(model_config):
 
     TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S/}".format(datetime.now())
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir="./logs/logs_" + TIMESTAMP)
-    model_file_path = './pb/match/' + CONFIG["model_name"] + '/'
+    model_file_path = './pb/match/' + CONFIG["model_name"] + '/1'
+    user_model_file_path = './pb/match/' + CONFIG["model_name"] + '/user/1'
+    item_model_file_path = './pb/match/' + CONFIG["model_name"] + '/item/1'
     model_file_path_test = './pb/match/' + CONFIG["model_name"] + '/test/'
     model.fit(train_ds,
-                        epochs=5, steps_per_epoch=30,
-                        callbacks=[tensorboard_callback,
-                                   EarlyStopping(monitor='loss', patience=1, restore_best_weights=True)]
-                        )
+              epochs=5, steps_per_epoch=30,
+              validation_data=val_ds,
+              callbacks=[tensorboard_callback,
+                         EarlyStopping(monitor='loss', patience=1, restore_best_weights=True)]
+              )
 
     # # Calling `save('my_model')` creates a SavedModel folder `my_model`.
     model.save(model_file_path)
     # It can be used to reconstruct the model identically.
     reconstructed_model = tf.keras.models.load_model(model_file_path)
+
+    raw_predict_label = model.predict(test_ds)
+
+    reconstructed_predict_label = reconstructed_model.predict(test_ds, callbacks=[tensorboard_callback])
     #
-    # # Let's check:
-    # #
-    # raw_predict_label = model.predict(test_input, callbacks=[tensorboard_callback])
-    # print('recon')
-    # reconstructed_predict_label = reconstructed_model.predict(test_input, callbacks=[tensorboard_callback])
-    # print('raw:{0}'.format(raw_predict_label))
-    # print('reconstructed:{0}'.format(reconstructed_predict_label))
-    # # print("input shape:", test_input["item"].shape)
-    # # print("predictions shape:", raw_predict_label.shape)
+
     # print(np.testing.assert_allclose(
     #     raw_predict_label,
     #     reconstructed_predict_label
@@ -441,6 +660,7 @@ def train_hys_data(model_config):
         }
         logging.debug("feature spec: %s", feature_spec)
         return tf.estimator.export.build_parsing_serving_input_receiver_fn(feature_spec)()
+
     #
     # keras_estimator.export_saved_model(model_file_path_test, serving_input_fn)
     # predictions = keras_estimator.predict(
@@ -454,40 +674,18 @@ def train_hys_data(model_config):
 
     # todo 1、batch内随机负采样 3、添加transformer和attention fusion 4、实现java的serving和local调用
 
-    # user_embed_model = Model(inputs=model.user_input, outputs=model.user_embeding)
-    # item_embed_model = Model(inputs=model.item_input, outputs=model.item_embeding)
-    #
-    # test_user_input = {
-    #     "keyword": np.asarray([[11, 4, 0, 0, 0],
-    #                            [11, 4, 0, 0, 0],
-    #                            [10, 19, 23, 0, 0],
-    #                            [15, 21, 24, 0, 0]
-    #                            ]),
-    # }
-    #
-    # test_item_input = {
-    #     "item": np.asarray([[11, 4, 11, 4, 11, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    #                         [11, 4, 11, 4, 11, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    #                         [10, 19, 23, 10, 19, 23, 16, 24, 0, 0, 0, 0, 0, 0, 0],
-    #                         [15, 21, 24, 15, 21, 24, 15, 21, 24, 0, 0, 0, 0, 0, 0]
-    #                         ]),
-    #     "volume": np.asarray([[0.2],
-    #                           [0.2], [0.1], [0.3]
-    #                           ]),  # [0,1)之间数据
-    #     "type": np.asarray([['0'],
-    #                         ['0'], ['0'], ['1']
-    #                         ]),
-    #     "price": np.asarray([[30.],
-    #                          [30.], [10.], [19.]
-    #                          ]),
-    # }
-    # user_embs = user_embed_model.predict(test_user_input )
-    #
-    # item_embs = item_embed_model.predict(test_item_input)
-    #
-    # user_embs = tf.squeeze(user_embs)
-    # item_embs = tf.squeeze(item_embs)
-    # print("user embed:{0}".format(user_embs))
+    user_embed_model = Model(inputs=model.user_input, outputs=model.user_embeding)
+    item_embed_model = Model(inputs=model.item_input, outputs=model.item_embeding)
+    user_embed_model.save(user_model_file_path)
+    item_embed_model.save(user_model_file_path)
+    test_user_ds = predict_user_input_fn_from_tfrecords(CONFIG['train_file'], 1, shuffle=True, batch_size=4)
+    test_item_ds = predict_item_input_fn_from_tfrecords(CONFIG['train_file'], 1, shuffle=True, batch_size=4)
+    test_user_embed = user_embed_model.predict(test_user_ds)
+    test_item_embed = item_embed_model.predict(test_item_ds)
+
+    user_embs = tf.squeeze(test_user_embed)
+    item_embs = tf.squeeze(test_item_embed)
+    print("user embed:{0}，item:{1}".format(user_embs,item_embs))
 
 
 if __name__ == '__main__':
@@ -505,3 +703,4 @@ if __name__ == '__main__':
         train_census_data(config)
     else:
         train_hys_data(config)
+        # main(config)

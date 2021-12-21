@@ -19,7 +19,6 @@ class DNN(Layer):
         self.dnn_dropout = dnn_dropout
         super(DNN, self).__init__(**kwargs)
         for unit in self.hidden_units:
-            print( self.hidden_units,unit,type(unit),self.activation)
             Dense(units=unit, activation=self.activation)
         self.dnn_network = [Dense(units=unit, activation=self.activation) for unit in self.hidden_units]
         self.dropout = Dropout(self.dnn_dropout)
@@ -37,6 +36,36 @@ class DNN(Layer):
                        'dnn_dropout': self.dnn_dropout})
         return config
 
+
+# define numeric embedding
+class NumericEmbeddingLayer(Layer):
+
+    def __init__(self, input_dim, output_dim, name=""):
+        super(NumericEmbeddingLayer, self).__init__()
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.embedding_w = self.add_weight(shape=(self.input_dim, self.output_dim)
+                                           , initializer="random_normal"
+                                           , trainable=True
+                                           , name=name)
+
+    def call(self, inputs):
+        assert (inputs.shape[1] == self.input_dim)
+        inputs = tf.keras.layers.RepeatVector(self.output_dim)(inputs)
+        inputs = tf.transpose(inputs, perm=[0, 2, 1])
+        return inputs * self.embedding_w
+
+# define catrgorical embedding
+class CategoricalEmbeddingLayer(Layer):
+
+    def __init__(self, input_dim, output_dim, name=""):
+        super(CategoricalEmbeddingLayer, self).__init__()
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.embedding_layers = tf.keras.layers.Embedding(self.input_dim, self.output_dim, name=name)
+
+    def call(self, inputs):
+        return self.embedding_layers(inputs)
 
 
 

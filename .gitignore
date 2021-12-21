@@ -107,3 +107,7 @@ wheelhouse
 build
 dist
 py36venv
+
+#
+events*
+*.gz

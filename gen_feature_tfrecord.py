@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import random
 import json
+import os
 import re
 import tensorflow as tf
 from run_ctr_model import census_text_input_fn_from_tfrecords
@@ -426,27 +427,34 @@ pattern = re.compile(r'[+—！，。？?、~@#￥%…&*（）{}()；;：:[\]【
 
 
 class DataPreprocess():
-    def __init__(self, df):
-        self.word_index = self.build_vocab(df)
-        self.bert_tokenizer = AutoTokenizer.from_pretrained("bert-base-chinese")
+    def __init__(self, vocab_path):
+        self.word_index = self.build_vocab(vocab_path)
+        # self.bert_tokenizer = AutoTokenizer.from_pretrained("bert-base-chinese")
+        self.bert_tokenizer = AutoTokenizer.from_pretrained("/Users/gallup/data/bert/bert-base-chinese")
 
-    def build_vocab(self, df):
-        words = set()
-        for i in range(len(df)):
-            line = df.iloc[i, 0]
-            for text in line:
-                new_line = re.sub(pattern, '', text).lower().strip()
-                line_words = new_line.split(" ")
-                for word in line_words:
-                    words.add(word)
-
-        # The first indices are reserved
-        word_index = {word: (i + 4) for i, word in enumerate(words)}
-        word_index["<pad>"] = 0
-        word_index["<start>"] = 1
-        word_index["<unk>"] = 2  # unknown
-        word_index["<unused>"] = 3
-        print(len(word_index))
+    def build_vocab(self, vocab_path):
+        # words = set()
+        # for i in range(len(df)):
+        #     line = df.iloc[i, 0]
+        #     for text in line:
+        #         new_line = re.sub(pattern, '', text).lower().strip()
+        #         line_words = new_line.split(" ")
+        #         for word in line_words:
+        #             words.add(word)
+        #
+        # # The first indices are reserved
+        # word_index = {word: (i + 4) for i, word in enumerate(words)}
+        # word_index["<pad>"] = 0
+        # word_index["<start>"] = 1
+        # word_index["<unk>"] = 2  # unknown
+        # word_index["<unused>"] = 3
+        # print(len(word_index))
+        word_index = {}
+        with open(vocab_path,'r') as fin:
+            lines = fin.readlines()
+            for i,line in enumerate(lines):
+                word = line.replace('\n','')
+                word_index[word] = i
         return word_index
 
     def encode_text(self, df, column):
@@ -462,8 +470,15 @@ class DataPreprocess():
         return df
 
     def ngram(self, df, column):
-        ngram = NGram(inputCol=column, n=3, outputCol=column + "ngrams")
+        ngramPath =  "./ngram"
+        if os.path.exists(ngramPath):
+            ngram = NGram.load(ngramPath)
+        else:
+            ngram = NGram(n=3)
+        ngram.setInputCol(column)
+        ngram.setOutputCol(column + "ngrams")
         df = ngram.transform(df)
+        ngram.save(ngramPath)
         return df
 
     def tokenizer(self, df, column, max_length):
@@ -480,6 +495,8 @@ class DataPreprocess():
         token_udf = udf(token, MapType(StringType(), ArrayType(IntegerType())))
         df = df.withColumn(column + '_bert', token_udf(df[column]))
         return df
+
+    # def bert_encod(self,df, column, max_length):
 
 
 def run_hys():
@@ -588,10 +605,11 @@ def run_hys():
         df = df.withColumn('item', split(col('item'), ' '))
         df = padding_text(df, 'item', 15).drop(*["title", "brand", "tag"])
 
-        data_preprocess = DataPreprocess(df.select("item").toPandas())
+        data_preprocess = DataPreprocess('/Users/gallup/data/bert/bert-base-chinese/vocab.txt')
         df = data_preprocess.tokenizer(df, 'item', 20)
-        df = df.withColumn("item_input_ids", df.item_bert["input_ids"]) \
-            .withColumn("item_attention_mask", df.item_bert["attention_mask"]) \
+        # df = data_preprocess.ngram(df, 'item')
+        df = df.withColumn("item_input_ids", df["item_bert"]["input_ids"]) \
+            .withColumn("item_attention_mask", df["item_bert"]["attention_mask"]) \
             .drop("item_bert")
         df = df.withColumn('keyword', split(col('keyword'), ' '))
         df = padding_text(df, 'keyword', 5)

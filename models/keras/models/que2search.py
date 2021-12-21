@@ -254,7 +254,15 @@ class Que2Search(Model):
             else:
                 item_inputs[feat['name']] = feat_input
 
-        model = Model(inputs=[user_inputs, item_inputs],
+        inputs = []
+        for key, value in user_inputs.items():
+            print(value)
+            inputs.append(value)
+        for key, value in item_inputs.items():
+            print(value)
+            inputs.append(value)
+
+        model = Model(inputs=inputs,
                       outputs=self.call([user_inputs, item_inputs]))
 
         model.__setattr__("user_input", user_inputs)
